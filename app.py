@@ -846,7 +846,7 @@ def chat():
                     "--- USER SUBMITTED CODE ---\n"
                 )
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
             
             elif (web_search_context or library_search_context) and not ai_response:
                 GENERAL_SYSTEM_PROMPT = "You are a helpful assistant. Answer based *only* on the provided context. Cite sources [Source: link] or [Source: Filename]."
