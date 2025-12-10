@@ -857,10 +857,10 @@ def chat():
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                 context_prompt = "\n\n".join(context_parts)
                 search_augmented_history = [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"{context_prompt}\n\n--- USER QUESTION ---\n{user_message}"}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
                     
             elif not ai_response and GROQ_API_KEY:
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                ai_response = call_api"[https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
             model_name = "gemini-2.5-flash" 
