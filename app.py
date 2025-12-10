@@ -486,7 +486,7 @@ def get_ai_summary(text_content):
     if not text_content or text_content.isspace():
         return "No text content to summarize."
     try:
-        model = genai.GenerativeModel("gemini-2.5-pro") 
+        model = genai.GenerativeModel("gemini-2.5-flash") 
         max_length = 80000 
         if len(text_content) > max_length:
             text_content = text_content[:max_length]
@@ -863,7 +863,7 @@ def chat():
                 ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
-            model_name = "gemini-2.5-pro" 
+            model_name = "gemini-2.5-flash" 
             model = genai.GenerativeModel(model_name)
             prompt_parts = [user_message] if user_message else []
 
