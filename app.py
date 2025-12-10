@@ -860,7 +860,7 @@ def chat():
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
                     
             elif not ai_response and GROQ_API_KEY:
-                ai_response = call_api"[https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                ai_response = call_api( "https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
             model_name = "gemini-2.5-flash" 
