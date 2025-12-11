@@ -882,7 +882,7 @@ def chat():
                     "--- USER SUBMITTED CODE ---\n"
                 )
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
+                ai_response = call_api ( "https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
             
             elif (web_search_context or library_search_context) and not ai_response:
                 GENERAL_SYSTEM_PROMPT = "You are a helpful assistant. Answer based *only* on the provided context. Cite sources [Source: link] or [Source: Filename]."
@@ -893,10 +893,10 @@ def chat():
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                 context_prompt = "\n\n".join(context_parts)
                 search_augmented_history = [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"{context_prompt}\n\n--- USER QUESTION ---\n{user_message}"}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
+                ai_response = call_api ("https://api.groq.com/openai/v1/chat/completions ", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
                     
             elif not ai_response and GROQ_API_KEY:
-                ai_response = call_api( "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                ai_response = call_api( " https://api.groq.com/openai/v1/chat/completions ", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
             model_name = "gemini-2.5-flash" 
