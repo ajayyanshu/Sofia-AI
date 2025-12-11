@@ -14,7 +14,7 @@ import fitz  # PyMuPDF
 import google.generativeai as genai
 import requests
 from flask import (Flask, jsonify, render_template, request, session, redirect,
-                   url_for, flash, make_response, abort) # Added abort
+                   url_for, flash, make_response, abort)
 from flask_cors import CORS
 from PIL import Image
 from pymongo import MongoClient
@@ -83,6 +83,7 @@ temporary_chat_collection = None
 conversations_collection = None
 users_collection = None
 library_collection = None 
+feedback_collection = None # Added for Feedback Feature
 
 if MONGO_URI:
     try:
@@ -95,6 +96,7 @@ if MONGO_URI:
         conversations_collection = db.get_collection("conversations")
         users_collection = db.get_collection("users")
         library_collection = db.get_collection("library_items")
+        feedback_collection = db.get_collection("feedback") # Initialize Feedback Collection
         print("✅ Successfully connected to MongoDB.")
     except Exception as e:
         print(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
@@ -222,7 +224,6 @@ def api_login():
     if user_data and user_data.get('password') == password:
         new_session_id = str(uuid.uuid4())
         
-        # --- ADMIN FEATURE: UPDATE LAST LOGIN TIME ---
         users_collection.update_one(
             {'_id': user_data['_id']}, 
             {'$set': {
@@ -329,11 +330,6 @@ def logout_all_devices():
         print(f"LOGOUT_ALL_ERROR: {e}")
         return jsonify({'success': False, 'error': 'Server error during logout.'}), 500
 
-@app.route('/2fa/setup', methods=['POST'])
-@login_required
-def setup_2fa():
-    return jsonify({'success': False, 'message': '2FA setup is not yet implemented.'}), 501
-
 @app.route('/delete_account', methods=['DELETE'])
 @login_required
 def delete_account():
@@ -371,6 +367,26 @@ def delete_account():
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({'status': 'ok'}), 200
+
+# --- FEEDBACK API (NEW) ---
+@app.route('/api/feedback', methods=['POST'])
+@login_required
+def save_feedback():
+    if feedback_collection is None:
+        return jsonify({"error": "Database error"}), 500
+    try:
+        data = request.get_json()
+        feedback_item = {
+            "user_id": ObjectId(current_user.id),
+            "message_text": data.get('text', ''),
+            "feedback_type": data.get('type'), # 'like' or 'dislike'
+            "timestamp": datetime.utcnow()
+        }
+        feedback_collection.insert_one(feedback_item)
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"Feedback Error: {e}")
+        return jsonify({"error": "Failed to save feedback"}), 500
 
 # --- Chat History CRUD API ---
 @app.route('/api/chats', methods=['GET'])
@@ -783,6 +799,26 @@ def chat():
         web_search_context, library_search_context = None, None
 
         is_multimodal = bool(file_data) or "youtube.com" in user_message or "youtu.be" in user_message or any(k in user_message.lower() for k in PDF_KEYWORDS)
+        
+        # --- NEW MODE: CYBER THEORY LEARNING (A to Z) ---
+        if request_mode == 'cyber_theory':
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            prompt = (
+                "You are an expert Cyber Security Professor. The user wants to learn cybersecurity from A to Z, step-by-step. "
+                "The user has asked the following theory question or topic:\n\n"
+                f"\"{user_message}\"\n\n"
+                "Please explain this concept clearly. Structure your response as a lesson:\n"
+                "1. **Concept Definition** (Theory)\n"
+                "2. **Real-World Examples**\n"
+                "3. **Attack & Defense** (How hackers use it vs. how to prevent it)\n"
+                "4. **Step-by-Step Practical Insight** (if applicable)\n"
+                "Keep it engaging and educational."
+            )
+            try:
+                response = model.generate_content(prompt)
+                return jsonify({'response': response.text})
+            except Exception as e:
+                return jsonify({'response': "Error generating cyber lesson."})
 
         if request_mode == 'chat' and not is_multimodal:
             auto_mode = should_auto_search(user_message)
@@ -846,7 +882,7 @@ def chat():
                     "--- USER SUBMITTED CODE ---\n"
                 )
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
+                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
             
             elif (web_search_context or library_search_context) and not ai_response:
                 GENERAL_SYSTEM_PROMPT = "You are a helpful assistant. Answer based *only* on the provided context. Cite sources [Source: link] or [Source: Filename]."
@@ -857,10 +893,10 @@ def chat():
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                 context_prompt = "\n\n".join(context_parts)
                 search_augmented_history = [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"{context_prompt}\n\n--- USER QUESTION ---\n{user_message}"}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
+                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
                     
             elif not ai_response and GROQ_API_KEY:
-                ai_response = call_api( "https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                ai_response = call_api( "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
             model_name = "gemini-2.5-flash" 
