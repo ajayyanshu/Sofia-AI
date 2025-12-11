@@ -31,13 +31,19 @@ const searchHistoryInput = document.getElementById('search-history-input');
 const tempChatBanner = document.getElementById('temp-chat-banner');
 const saveToDbBtn = document.getElementById('save-to-db-btn');
 
-// Cyber Training Elements
+// Ethical Hacking Mode Elements
 const cyberTrainingBtn = document.getElementById('cyber-training-btn');
 const cyberModal = document.getElementById('cyber-modal');
 const closeCyberModalBtn = document.getElementById('close-cyber-modal');
-const levelBtns = document.querySelectorAll('.level-btn');
-const cyberGameControls = document.getElementById('cyber-game-controls');
-const endCyberGameBtn = document.getElementById('end-cyber-game-btn');
+const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
+const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
+const cyberGameControls = document.getElementById('cyber-game-controls'); // Kept to hide it if present
+
+// Contact Us Elements
+const contactBtn = document.getElementById('contact-btn');
+const contactMenuItem = document.getElementById('contact-menu-item');
+const contactModal = document.getElementById('contact-modal');
+const closeContactModalBtn = document.getElementById('close-contact-modal');
 
 // Settings Modal
 const settingsModal = document.getElementById('settings-modal');
@@ -92,9 +98,8 @@ let chatHistory = [];
 let currentChat = [];
 let currentChatId = null;
 
-// Cyber Game State
-let isCyberGameActive = false;
-let currentCyberLevel = 'Basic';
+// Hacking Mode State
+let isEthicalHackingMode = false;
 
 // Plan & Usage State
 let usageCounts = {
@@ -144,7 +149,7 @@ newChatBtn.addEventListener('click', () => {
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
-// --- MODIFIED FILE UPLOAD LISTENERS ---
+// --- FILE UPLOAD LISTENERS ---
 uploadFileBtn.addEventListener('click', () => {
     fileInput.accept = "image/*,.pdf,.doc,.docx";
     fileInput.click();
@@ -236,7 +241,31 @@ generalTabBtn.addEventListener('click', (e) => { e.preventDefault(); switchSetti
 profileTabBtn.addEventListener('click', (e) => { e.preventDefault(); switchSettingsTab('profile'); });
 usageTabBtn.addEventListener('click', (e) => { e.preventDefault(); switchSettingsTab('usage'); });
 
-// --- Cyber Security Training Logic ---
+// --- Contact Modal Logic ---
+function openContactModal() {
+    if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
+    if (userMenu && !userMenu.classList.contains('hidden')) userMenu.classList.add('hidden');
+    contactModal.classList.remove('hidden');
+    contactModal.classList.add('flex');
+}
+
+contactBtn.addEventListener('click', openContactModal);
+if (contactMenuItem) contactMenuItem.addEventListener('click', openContactModal);
+
+closeContactModalBtn.addEventListener('click', () => {
+    contactModal.classList.add('hidden');
+    contactModal.classList.remove('flex');
+});
+
+contactModal.addEventListener('click', (e) => {
+    if (e.target === contactModal) {
+        contactModal.classList.add('hidden');
+        contactModal.classList.remove('flex');
+    }
+});
+
+
+// --- Ethical Hacking Mode Logic ---
 cyberTrainingBtn.addEventListener('click', () => {
     // Close sidebar on mobile if open
     if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
@@ -249,168 +278,41 @@ closeCyberModalBtn.addEventListener('click', () => {
     cyberModal.classList.remove('flex');
 });
 
-levelBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const level = btn.getAttribute('data-level');
-        startCyberGame(level);
-    });
-});
-
-endCyberGameBtn.addEventListener('click', endCyberGame);
-
-function startCyberGame(level) {
-    // 1. Reset UI
+toggleHackingModeBtn.addEventListener('click', () => {
+    isEthicalHackingMode = !isEthicalHackingMode;
+    updateHackingModeUI();
     cyberModal.classList.add('hidden');
     cyberModal.classList.remove('flex');
-    startNewChat(); // Clear existing chat
     
-    // 2. Set State
-    isCyberGameActive = true;
-    currentCyberLevel = level;
-    cyberGameControls.classList.remove('hidden');
-    
-    // 3. Define the System Persona based on level
-    let personaPrompt = "";
-    if (level === 'Basic') {
-        personaPrompt = "Act as a naive scammer (e.g., Nigerian Prince or Lottery winner). Use slightly poor grammar, make obvious demands for money or bank details. Do not break character. Keep responses short.";
-    } else if (level === 'Intermediate') {
-        personaPrompt = "Act as a somewhat convincing scammer posing as 'Amazon Support' or 'Your Bank'. Use urgent language claiming a transaction was authorized. Try to get the user to download 'AnyDesk' or give an OTP. Do not break character. Keep responses short.";
-    } else {
-        personaPrompt = "Act as a sophisticated Expert Hacker/Social Engineer. Use a Spear Phishing approach. You are posing as a 'Senior IT Administrator' from the user's company (use technical jargon). You need them to run a specific command or visit a specific 'internal' link to patch a security flaw. Be polite, professional, and very convincing. Do not break character. Keep responses short.";
-    }
-    
-    // 4. Send the hidden system prompt to Sofia
-    const introMsg = {
-        text: `[SYSTEM: SIMULATION STARTED - LEVEL: ${level}]\n${personaPrompt}\n\nStart the conversation now by greeting the victim.`,
-        sender: 'user', // We spoof this so the AI replies to it
-        mode: 'chat'
-    };
-    
-    // UI Message showing start
-    const startMsg = { 
-        text: `🏁 **Cyber Security Challenge Started: ${level} Level**\n\nThe AI is now a scammer. Defend yourself!\nWhen you think you've caught them, click **Analyze & End**.`, 
-        sender: 'system' 
-    };
-    addMessage(startMsg);
-    
-    // Trigger the AI to start speaking
-    fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(introMsg)
-    })
-    .then(res => res.json())
-    .then(data => {
-        const aiMsg = { text: data.response, sender: 'ai' };
-        addMessage(aiMsg);
-        currentChat.push(introMsg); // Add prompt to history for context now
-        currentChat.push(aiMsg);
-    })
-    .catch(err => console.error("Game start error", err));
-}
-
-async function endCyberGame() {
-    if (!confirm("Are you sure you want to end the simulation and get your report?")) return;
-
-    endCyberGameBtn.textContent = "Analyzing...";
-    endCyberGameBtn.disabled = true;
-
-    try {
-        // 1. Get and Render the Report
-        const response = await fetch('/api/cyber/evaluate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: currentChat,
-                level: currentCyberLevel
-            })
-        });
-
-        const report = await response.json();
-        renderCyberReport(report);
-
-        // 2. CRITICAL FIX: Automatically reset the AI Persona
-        // We send a command to the AI forcing it to confirm it is Sofia again.
-        const resetMessage = {
-            text: "[SYSTEM COMMAND: The simulation is successfully finished. STOP roleplaying as a scammer immediately. RESET your persona to 'Sofia AI' (helpful assistant). Reply briefly confirming you are back to normal.]",
-            sender: 'user', // We send as 'user' to force the model to obey
-            mode: 'chat'
-        };
-
-        // Add to history (but we won't show this specific prompt in the UI to keep it clean)
-        currentChat.push(resetMessage);
-
-        // Call the chat API to process this reset
-        const resetResponse = await fetch('/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(resetMessage)
-        });
-
-        const resetData = await resetResponse.json();
-
-        // 3. Show Sofia's "Back to Normal" response
-        const aiResetMsg = { 
-            text: resetData.response, 
-            sender: 'ai' 
-        };
-        addMessage(aiResetMsg);
-        currentChat.push(aiResetMsg);
+    // Add a system message to chat to confirm mode switch
+    const statusMsg = isEthicalHackingMode 
+        ? "👨‍💻 **Ethical Hacking Teacher Mode Activated.**\nAsk me about penetration testing, network security, or defense mechanisms."
+        : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
         
-        // Save the updated history so the context is permanently fixed
-        saveChatSession();
-
-    } catch (error) {
-        console.error("Evaluation or Reset failed", error);
-        addMessage({ text: "Error generating report. Please check console.", sender: 'system' });
-    } finally {
-        // Reset State
-        isCyberGameActive = false;
-        cyberGameControls.classList.add('hidden');
-        endCyberGameBtn.textContent = "Analyze & End";
-        endCyberGameBtn.disabled = false;
-    }
-}
-
-function renderCyberReport(report) {
-    let colorClass = 'score-low';
-    if (report.score >= 80) colorClass = 'score-high';
-    else if (report.score >= 50) colorClass = 'score-med';
-
-    const tipsHtml = report.tips ? report.tips.map(tip => `<li class="mb-1">💡 ${tip}</li>`).join('') : '<li>No specific tips.</li>';
-
-    const html = `
-        <div class="cyber-report-card">
-            <h3 class="text-xl font-bold text-center mb-4 border-b pb-2">🛡️ Security Analysis Report</h3>
-            
-            <div class="report-score-circle ${colorClass}">
-                ${report.score}
-            </div>
-            
-            <div class="text-center font-bold text-lg mb-4">Verdict: ${report.verdict}</div>
-            
-            <div class="mb-4">
-                <h4 class="font-semibold text-gray-700 dark:text-gray-300">Analysis:</h4>
-                <p class="text-sm text-gray-600 dark:text-gray-400">${report.analysis}</p>
-            </div>
-            
-            <div>
-                <h4 class="font-semibold text-gray-700 dark:text-gray-300">How to Improve:</h4>
-                <ul class="text-sm text-gray-600 dark:text-gray-400 list-none pl-0 mt-2">
-                    ${tipsHtml}
-                </ul>
-            </div>
-        </div>
-    `;
-
-    const messageBubble = document.createElement('div');
-    messageBubble.innerHTML = html;
-    messageBubble.className = 'message-bubble ai-message w-full'; // Full width for report
-    chatContainer.appendChild(messageBubble);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    addMessage({ text: statusMsg, sender: 'system' });
     
-    // Save this report to chat history logic if needed
-    currentChat.push({ text: `**Security Report:** Score ${report.score}/100 - ${report.verdict}`, sender: 'ai' });
+    if (isEthicalHackingMode) startNewChat(); // Start fresh context for the teacher
+});
+
+function updateHackingModeUI() {
+    if (isEthicalHackingMode) {
+        toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
+        hackingModeStatusText.textContent = "Disable Teacher Mode";
+        
+        // Optional: Add a visual indicator
+        const headerTitle = document.querySelector('header span');
+        if (headerTitle) headerTitle.innerHTML = 'Sofia AI <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-2">Ethical Hacker</span>';
+        
+    } else {
+        toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
+        hackingModeStatusText.textContent = "Enable Teacher Mode";
+        
+        // Reset header
+        const headerTitle = document.querySelector('header span');
+        if (headerTitle) headerTitle.textContent = 'Sofia AI';
+    }
 }
 
 
@@ -640,7 +542,7 @@ function applyLanguage(lang) {
     const profileTabSpan = document.querySelector('#profile-tab-btn span');
     if (profileTabSpan) profileTabSpan.textContent = translations[lang]['profile'];
 
-    // 3. Settings - Usage & Plan Table (The Fix for your Screenshot)
+    // 3. Settings - Usage & Plan Table
     const planTable = document.querySelector('.plan-table');
     if (planTable) {
         // Table Headers
@@ -648,35 +550,29 @@ function applyLanguage(lang) {
         if (headerRow) {
             headerRow.children[0].textContent = translations[lang]['feature'];
             headerRow.children[1].textContent = translations[lang]['freePlanTitle'];
-            // For Pro plan, we keep the price part hardcoded or simple for now, mostly updating title
             headerRow.children[2].innerHTML = `${translations[lang]['premiumPlanTitle']} <span class="text-sm font-normal">(₹99/month)</span>`;
         }
 
-        // Table Rows (targeting by structure since there are no IDs)
-        const rows = planTable.querySelectorAll('.bg-gray-50 > div, .dark\\:bg-gray-800 > div'); // Handles bg-gray-50 container
+        // Table Rows
+        const rows = planTable.querySelectorAll('.bg-gray-50 > div, .dark\\:bg-gray-800 > div');
         
         if (rows.length >= 5) {
-            // Row 1: Daily Text Messages
             rows[0].children[0].textContent = translations[lang]['dailyTextMessages'];
             rows[0].children[1].textContent = `15 ${translations[lang]['messages']}`;
             rows[0].children[2].textContent = translations[lang]['unlimited'];
 
-            // Row 2: Voice Commands
             rows[1].children[0].textContent = translations[lang]['voiceCommands'];
             rows[1].children[1].textContent = `5 ${translations[lang]['perDay']}`;
             rows[1].children[2].textContent = translations[lang]['unlimited'];
 
-            // Row 3: Read Docs
             rows[2].children[0].textContent = translations[lang]['readDocs'];
             rows[2].children[1].textContent = translations[lang]['perMonth'];
             rows[2].children[2].textContent = translations[lang]['unlimited'];
 
-            // Row 4: Web Search
             rows[3].children[0].textContent = translations[lang]['webSearchLimit'];
             rows[3].children[1].textContent = `1 ${translations[lang]['perDay']}`;
             rows[3].children[2].textContent = `${translations[lang]['unlimited']}*`;
 
-            // Row 5: Save History
             rows[4].children[0].textContent = translations[lang]['saveHistory'];
             rows[4].children[1].textContent = translations[lang]['yesForever'];
             rows[4].children[2].textContent = translations[lang]['yesForever'];
@@ -687,14 +583,11 @@ function applyLanguage(lang) {
     if (planTitle) planTitle.textContent = translations[lang]['freePlanTitle'];
     if (razorpayBtn) razorpayBtn.textContent = translations[lang]['upgradeBtnText'];
 
-    // Update dynamic usage text immediately
     updateUsageUI();
-
 
     // 4. Settings - Profile Tab Labels
     const profileContent = document.getElementById('profile-settings-content');
     if (profileContent) {
-        // Find specific labels by hierarchy
         const emailVerLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > div > p.font-medium');
         if (emailVerLabel) emailVerLabel.textContent = translations[lang]['emailVerification'];
 
@@ -706,7 +599,6 @@ function applyLanguage(lang) {
 
         // Dynamic Status Text for Email
         if (emailVerificationStatusText) {
-             // If verify btn is disabled, it means email is already verified
             if (verifyEmailBtn && verifyEmailBtn.disabled) {
                 emailVerificationStatusText.textContent = translations[lang]['emailVerifiedMsg'];
             } else {
@@ -715,9 +607,8 @@ function applyLanguage(lang) {
         }
     }
 
-    // 5. Update Verify/Delete buttons manually if needed
+    // 5. Update Verify/Delete buttons
     if (verifyEmailBtn) {
-        // preserve disabled state logic text slightly
         if (!verifyEmailBtn.disabled) verifyEmailBtn.textContent = translations[lang]['verify'];
         else if (verifyEmailBtn.textContent !== 'Sending...') verifyEmailBtn.textContent = translations[lang]['verified'];
     }
@@ -871,10 +762,14 @@ async function sendMessage() {
     
     const typingIndicator = addTypingIndicator();
 
-    // --- CRITICAL FIX FOR CYBER GAME: REMIND THE AI OF ITS ROLE ---
+    // --- MODIFIED SYSTEM PROMPT FOR TEACHER MODE ---
     let textToSend = text;
-    if (isCyberGameActive) {
-        textToSend = `[SYSTEM: The Cyber Security Simulation is STILL ACTIVE. You are NOT Sofia AI. You MUST continue acting as the ${currentCyberLevel} Level Scammer defined previously. Do not break character. Do not help the user. Try to trick them.]\n\nUser says: "${text}"`;
+    if (isEthicalHackingMode) {
+        textToSend = `[SYSTEM: You are now an Expert Ethical Hacking Teacher.
+        - Your goal is to teach the user about cybersecurity, penetration testing, and network defense.
+        - Explain concepts clearly (e.g., SQL Injection, XSS, Phishing) but ALWAYS emphasize the legal and ethical boundaries.
+        - If the user asks for malicious code, refuse and explain *how* to secure against it instead.
+        - Use emojis like 🛡️, 💻, 🔐 to make learning engaging.]\n\nUser Question: "${text}"`;
     }
     // -------------------------------------------------------------
 
@@ -883,7 +778,7 @@ async function sendMessage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                text: textToSend, // <--- Use the modified text here
+                text: textToSend, 
                 fileData: currentFileData, 
                 fileType: currentFileType,
                 isTemporary: isTemporaryChatActive,
@@ -1682,13 +1577,11 @@ function updateUsageUI() {
         
         const percentage = Math.min((usageCounts.messages / usageLimits.messages) * 100, 100);
         
-        // --- TRANSLATION FIX HERE ---
         const usedWord = translations[currentLang]['used'] || 'Used';
         const msgsUsedWord = translations[currentLang]['msgsUsedMonth'] || 'messages used this month';
         
         sidebarUsageDisplay.textContent = `${usageCounts.messages} / ${usageLimits.messages} ${usedWord}`;
         usageCounter.textContent = `${usageCounts.messages} / ${usageLimits.messages} ${msgsUsedWord}`;
-        // ----------------------------
         
         usageProgressBar.style.width = `${percentage}%`;
     }
@@ -1928,5 +1821,3 @@ function typeWriterEffect(elementId, text, speed = 40) {
 }
 
 initializeApp();
-
-
