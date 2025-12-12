@@ -37,7 +37,7 @@ const cyberModal = document.getElementById('cyber-modal');
 const closeCyberModalBtn = document.getElementById('close-cyber-modal');
 const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
 const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
-const cyberGameControls = document.getElementById('cyber-game-controls'); // Kept to hide it if present
+const cyberGameControls = document.getElementById('cyber-game-controls');
 
 // Contact Us Elements
 const contactBtn = document.getElementById('contact-btn');
@@ -877,9 +877,6 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
                 <button class="action-btn dislike-btn" title="Bad response">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0011.057 2H5.642a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.821-2.311l1.055-1.636a1 1 0 001.423 .23z"/></svg>
                 </button>
-                <button class="action-btn share-btn" title="Share">
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
-                </button>
                 <button class="action-btn speak-btn" title="Speak">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" /></svg>
                 </button>
@@ -938,27 +935,20 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             messageBubble.querySelector('.like-btn').classList.remove('text-blue-600');
         });
 
-        messageBubble.querySelector('.share-btn').addEventListener('click', async () => {
-            const button = messageBubble.querySelector('.share-btn');
-            const originalContent = button.innerHTML;
-            if (navigator.share) {
-                try {
-                    await navigator.share({ title: 'Sofia AI Assistance', text: text });
-                } catch (error) {
-                    console.error('Error sharing:', error);
-                    navigator.clipboard.writeText(text);
-                    button.innerHTML = '<span class="text-xs">Copied!</span>';
-                    setTimeout(() => { button.innerHTML = originalContent; }, 2000);
-                }
+        const speakBtn = messageBubble.querySelector('.speak-btn');
+        speakBtn.addEventListener('click', () => {
+            // Check if ANY speech is active and cancel it first
+             if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                // Remove active class from all speaker buttons to be safe
+                document.querySelectorAll('.speak-btn').forEach(btn => btn.classList.remove('text-green-600', 'animate-pulse'));
             } else {
-                navigator.clipboard.writeText(text);
-                button.innerHTML = '<span class="text-xs">Copied!</span>';
-                setTimeout(() => { button.innerHTML = originalContent; }, 2000);
+                // If not speaking, start this one
+                speakBtn.classList.add('text-green-600', 'animate-pulse');
+                speakText(text, () => {
+                    speakBtn.classList.remove('text-green-600', 'animate-pulse');
+                });
             }
-        });
-
-        messageBubble.querySelector('.speak-btn').addEventListener('click', () => {
-            speakText(text, null);
         });
 
     } else if (sender === 'system') {
@@ -1071,75 +1061,97 @@ function speakText(text, onEndCallback) {
 }
 
 function startListening() {
-    if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-    }
-    
+    // 1. Check browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        addMessage({ text: 'Speech recognition is not supported in this browser.', sender: 'system' });
-        endVoiceConversation();
+        alert("Your browser does not support voice input. Please use Google Chrome or Edge.");
         return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = currentLang;
+    // 2. Cancel any active speech output
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+    }
 
-    recognition.onstart = () => {
-        if (isVoiceConversationActive) {
-            setVoiceUIState('listening');
-        } else {
-            micBtn.classList.add('text-red-500');
-        }
-    };
-
-    recognition.onend = () => {
-        micBtn.classList.remove('text-red-500');
-        // The user stopped talking. If we have a final transcript, send it.
-        const finalTranscript = voiceInterimTranscript.textContent.trim();
-         if (isVoiceConversationActive && finalTranscript) {
-            messageInput.value = finalTranscript;
-            sendMessage();
-            setVoiceUIState('thinking');
-        } else if (isVoiceConversationActive) {
-            // If no speech was detected, just start listening again
-            startListening();
-        }
-    };
-    
-    recognition.onresult = (event) => {
-         let interim_transcript = '';
-         let final_transcript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                final_transcript += event.results[i][0].transcript;
-            } else {
-                interim_transcript += event.results[i][0].transcript;
-            }
-        }
-        voiceInterimTranscript.textContent = final_transcript || interim_transcript;
-    };
-
-    recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error !== 'aborted' && isVoiceConversationActive) {
-            addMessage({ text: `Speech recognition error: ${event.error}`, sender: 'system' });
-        }
-        if (isVoiceConversationActive) {
-            endVoiceConversation();
-        }
-    };
-    
     try {
-         recognition.start();
-    } catch(e) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = currentLang;
+
+        recognition.onstart = () => {
+            if (isVoiceConversationActive) {
+                setVoiceUIState('listening');
+            } else {
+                // Visual feedback for standard Mic button
+                micBtn.classList.add('text-red-600', 'animate-pulse');
+                messageInput.placeholder = "Listening...";
+            }
+        };
+
+        recognition.onend = () => {
+            micBtn.classList.remove('text-red-600', 'animate-pulse');
+            messageInput.placeholder = translations[currentLang]['askAnything'] || "Ask anything"; // Restore placeholder
+            
+            // Handle Voice Conversation Mode Loop
+            if (isVoiceConversationActive) {
+                 const finalTranscript = voiceInterimTranscript.textContent.trim();
+                 if (finalTranscript) {
+                    messageInput.value = finalTranscript;
+                    sendMessage();
+                    setVoiceUIState('thinking');
+                 } else {
+                    // If silence, listen again
+                    try { recognition.start(); } catch(e) {}
+                 }
+            }
+        };
+
+        recognition.onresult = (event) => {
+            let interim_transcript = '';
+            let final_transcript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    final_transcript += event.results[i][0].transcript;
+                } else {
+                    interim_transcript += event.results[i][0].transcript;
+                }
+            }
+
+            // If not in full voice mode, put text directly into input
+            if (!isVoiceConversationActive) {
+                messageInput.value = final_transcript || interim_transcript;
+                // Auto-resize input height
+                messageInput.style.height = 'auto';
+                messageInput.style.height = `${messageInput.scrollHeight}px`;
+                // Show send button
+                sendBtn.classList.remove('hidden');
+                micBtn.classList.add('hidden');
+                voiceModeBtn.classList.add('hidden');
+            } else {
+                voiceInterimTranscript.textContent = final_transcript || interim_transcript;
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            micBtn.classList.remove('text-red-600', 'animate-pulse');
+            messageInput.placeholder = "Error. Try again.";
+            
+            if (event.error === 'not-allowed') {
+                alert("Microphone access blocked. Please allow microphone permissions in your browser settings.");
+            }
+            if (isVoiceConversationActive) {
+                endVoiceConversation();
+            }
+        };
+
+        recognition.start();
+
+    } catch (e) {
         console.error("Recognition start error", e);
-        if (isVoiceConversationActive) {
-            endVoiceConversation();
-        }
+        alert("Could not start microphone. Please check permissions.");
     }
 }
 
