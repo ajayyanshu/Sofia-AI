@@ -69,7 +69,6 @@
 
     <div class="auth-main-container">
         <div class="form-container">
-            <!-- Sign In Form -->
             <form id="sign-in-form" autocomplete="off" class="space-y-4">
                 <div class="text-center">
                     <h1 class="text-3xl font-bold">Sign In</h1>
@@ -90,10 +89,7 @@
                 </div>
 
                 <div class="w-full">
-                    <!-- "Forgot your password?" link is temporarily hidden by being "commented out" -->
-                    <!-- <a href="#" id="forgot-password-link" class="text-sm text-gray-600 hover:underline">Forgot your password?</a> -->
-                    
-                    <!-- The Sign In button will now appear right under the password field -->
+                    <a href="#" id="forgot-password-link" class="text-sm text-gray-600 hover:underline">Forgot your password?</a>
                     <button type="submit" class="w-full">Sign In</button>
                     <p id="signin-error" class="text-red-500 text-sm mt-2 h-5"></p>
                 </div>
@@ -104,7 +100,6 @@
                 </p>
             </form>
 
-            <!-- Forgot Password Form -->
             <form id="forgot-password-form" autocomplete="off" style="display: none;">
                 <h1 class="text-3xl font-bold mb-2">Reset Password</h1>
                 <span class="text-sm text-gray-500 mb-4">Enter your email to get a reset link</span>
@@ -121,22 +116,15 @@
         const forgotPasswordForm = document.getElementById('forgot-password-form');
         const passwordInput = document.getElementById('signin-password');
         const passwordToggleIcon = document.getElementById('password-toggle-icon');
-        
-        // We comment out the 'forgotPasswordLink' variable since the HTML element is hidden
-        // const forgotPasswordLink = document.getElementById('forgot-password-link'); 
-        
+        const forgotPasswordLink = document.getElementById('forgot-password-link');
         const backToLoginLink = document.getElementById('back-to-login-link');
 
         // --- Toggle between Sign In and Forgot Password forms ---
-        
-        // The click listener for 'forgotPasswordLink' is also commented out
-        /*
         forgotPasswordLink.addEventListener('click', (e) => {
             e.preventDefault();
             signInForm.style.display = 'none';
             forgotPasswordForm.style.display = 'flex';
         });
-        */
 
         backToLoginLink.addEventListener('click', (e) => {
             e.preventDefault();
@@ -185,11 +173,12 @@
             e.preventDefault();
             const email = document.getElementById('forgot-email').value.trim();
             const messageEl = document.getElementById('forgot-message');
-            messageEl.textContent = '';
+            messageEl.textContent = 'Sending...';
             messageEl.classList.remove('text-green-500', 'text-red-500');
 
             try {
-                const response = await fetch('/api/forgot-password', {
+                // *** FIX: Changed URL from /api/forgot-password to /api/request_password_reset ***
+                const response = await fetch('/api/request_password_reset', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ email })
