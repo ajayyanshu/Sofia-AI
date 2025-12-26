@@ -20,7 +20,7 @@
             width: 420px;
             max-width: 100%;
         }
-        .form-container form {
+        .form-container {
             background-color: #FFFFFF;
             display: flex;
             align-items: center;
@@ -31,13 +31,13 @@
         }
          .auth-main-container input {
             background-color: #f6f5f7;
-            border: 1px solid transparent; /* Added for smooth transition */
+            border: 1px solid transparent;
             padding: 12px 15px;
             margin-top: 0.5rem;
             width: 100%;
             border-radius: 8px;
             font-size: 14px;
-            transition: all 0.2s ease-in-out; /* Smooth transition */
+            transition: all 0.2s ease-in-out;
         }
         .auth-main-container input:focus {
             outline: none;
@@ -62,10 +62,17 @@
         .auth-main-container button:active {
             transform: scale(0.95);
         }
+
+        .otp-input-field {
+            letter-spacing: 0.5rem;
+            font-weight: bold;
+            font-size: 1.5rem;
+            text-align: center;
+        }
         
         /* Mobile Responsive Styles */
         @media (max-width: 480px) {
-            .form-container form {
+            .form-container {
                 padding-left: 2rem;
                 padding-right: 2rem;
             }
@@ -78,12 +85,10 @@
 <body class="flex items-center justify-center h-full">
 
     <div class="auth-main-container">
-        <!-- MODIFICATION: Added an ID to the form container -->
-        <div class="form-container" id="form-container">
-            <!-- Sign Up Form -->
+        <div class="form-container" id="auth-content">
             <form id="sign-up-form" autocomplete="off">
                 <h1 class="text-3xl font-bold mb-2">Create Account</h1>
-                <span class="text-sm text-gray-500 mb-4">or use your email for registration</span>
+                <span class="text-sm text-gray-500 mb-4">Join Sofia AI today</span>
                 
                 <div class="w-full text-left">
                     <label for="signup-name" class="text-sm font-medium text-gray-700">Name</label>
@@ -103,7 +108,7 @@
                     </div>
                 </div>
 
-                <button class="w-full">Sign Up</button>
+                <button type="submit" class="w-full" id="signup-submit-btn">Sign Up</button>
                 <p id="signup-error" class="text-red-500 text-sm mt-2 h-5"></p>
                 <p class="mt-4 text-sm">
                     Already have an account? 
@@ -114,11 +119,12 @@
     </div>
 
     <script>
+        const authContent = document.getElementById('auth-content');
         const signUpForm = document.getElementById('sign-up-form');
         const passwordInput = document.getElementById('signup-password');
         const passwordToggleIcon = document.getElementById('password-toggle-icon');
-        // MODIFICATION: Get the form container to replace its content
-        const formContainer = document.getElementById('form-container');
+        
+        let tempUserEmail = "";
 
         // --- Toggle Password Visibility ---
         passwordToggleIcon.addEventListener('click', () => {
@@ -135,14 +141,13 @@
             const email = document.getElementById('signup-email').value.trim();
             const password = passwordInput.value;
             const errorEl = document.getElementById('signup-error');
-            errorEl.textContent = '';
+            const submitBtn = document.getElementById('signup-submit-btn');
 
-            // Password length validation
-            if (password.length < 8) {
-                errorEl.textContent = 'Password must be at least 8 characters.';
-                return;
-            }
-            
+            tempUserEmail = email; 
+            errorEl.textContent = '';
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Sending OTP...";
+
             try {
                 const response = await fetch('/api/signup', {
                     method: 'POST',
@@ -153,28 +158,94 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // MODIFICATION: On successful signup, show a success message
-                    // instead of redirecting.
-                    formContainer.innerHTML = `
-                        <div class="text-center p-12">
-                            <h1 class="text-3xl font-bold mb-4">Check Your Email</h1>
-                            <p class="text-gray-600 mb-6">
-                                We've sent a verification link to <strong>${email}</strong>.
-                                Please click the link in the email to activate your account.
-                            </p>
-                            <a href="/login" class="font-semibold text-blue-600 hover:underline">
-                                Back to Sign In
-                            </a>
-                        </div>
-                    `;
+                    showOTPVerificationUI(email);
                 } else {
                     errorEl.textContent = data.error || "An unknown error occurred.";
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "Sign Up";
                 }
             } catch (error) {
                 console.error('Signup Error:', error);
                 errorEl.textContent = "Could not connect to the server.";
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Sign Up";
             }
         });
+
+        // --- Function to Show OTP Input UI ---
+        function showOTPVerificationUI(email) {
+            authContent.innerHTML = `
+                <div class="w-full">
+                    <h1 class="text-3xl font-bold mb-4">Verify Email</h1>
+                    <p class="text-sm text-gray-500 mb-6">
+                        We sent a 6-digit code to <br><span class="font-semibold text-gray-800">${email}</span>
+                    </p>
+                    
+                    <div class="w-full text-left">
+                        <label for="otp-code" class="text-sm font-medium text-gray-700">Enter OTP</label>
+                        <input type="text" id="otp-code" class="otp-input-field" placeholder="000000" maxlength="6" pattern="[0-9]*" inputmode="numeric" required />
+                    </div>
+
+                    <button id="verify-otp-btn" class="w-full">Verify & Activate</button>
+                    <p id="otp-error" class="text-red-500 text-sm mt-2 h-5"></p>
+                    
+                    <p class="mt-6 text-xs text-gray-400">
+                        Didn't receive a code? <br>
+                        <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium mt-1">Try signing up again</button>
+                    </p>
+                </div>
+            `;
+
+            // Attach event listener to the new button
+            document.getElementById('verify-otp-btn').addEventListener('click', handleOTPVerification);
+        }
+
+        // --- Handle OTP Verification API Call ---
+        async function handleOTPVerification() {
+            const otpCode = document.getElementById('otp-code').value.trim();
+            const errorEl = document.getElementById('otp-error');
+            const verifyBtn = document.getElementById('verify-otp-btn');
+
+            if (otpCode.length !== 6) {
+                errorEl.textContent = "Please enter a 6-digit code.";
+                return;
+            }
+
+            errorEl.textContent = "";
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = "Verifying...";
+
+            try {
+                const response = await fetch('/api/verify_otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: tempUserEmail, otp: otpCode })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    authContent.innerHTML = `
+                        <div class="text-center py-8">
+                            <i class="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
+                            <h1 class="text-2xl font-bold mb-2">Verified!</h1>
+                            <p class="text-gray-600 mb-6">Your account is active. You can now sign in.</p>
+                            <a href="/login" class="bg-blue-600 text-white px-8 py-3 rounded-full font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-colors">
+                                Sign In Now
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    errorEl.textContent = data.error || "Invalid OTP code.";
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = "Verify & Activate";
+                }
+            } catch (error) {
+                errorEl.textContent = "Server error. Please try again.";
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = "Verify & Activate";
+            }
+        }
     </script>
 </body>
 </html>
