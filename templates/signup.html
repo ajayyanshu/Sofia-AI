@@ -59,8 +59,13 @@
             cursor: pointer;
             margin-top: 1.5rem;
         }
-        .auth-main-container button:active {
+        .auth-main-container button:active:not(:disabled) {
             transform: scale(0.95);
+        }
+        .auth-main-container button:disabled {
+            background-color: #ccc;
+            border-color: #ccc;
+            cursor: not-allowed;
         }
 
         .otp-input-field {
@@ -70,7 +75,6 @@
             text-align: center;
         }
         
-        /* Mobile Responsive Styles */
         @media (max-width: 480px) {
             .form-container {
                 padding-left: 2rem;
@@ -121,17 +125,17 @@
     <script>
         const authContent = document.getElementById('auth-content');
         const signUpForm = document.getElementById('sign-up-form');
-        const passwordInput = document.getElementById('signup-password');
-        const passwordToggleIcon = document.getElementById('password-toggle-icon');
-        
         let tempUserEmail = "";
 
         // --- Toggle Password Visibility ---
-        passwordToggleIcon.addEventListener('click', () => {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            passwordToggleIcon.classList.toggle('fa-eye');
-            passwordToggleIcon.classList.toggle('fa-eye-slash');
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'password-toggle-icon') {
+                const passwordInput = document.getElementById('signup-password');
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                e.target.classList.toggle('fa-eye');
+                e.target.classList.toggle('fa-eye-slash');
+            }
         });
 
         // --- Handle Sign Up Form Submission ---
@@ -139,7 +143,7 @@
             e.preventDefault();
             const name = document.getElementById('signup-name').value.trim();
             const email = document.getElementById('signup-email').value.trim();
-            const password = passwordInput.value;
+            const password = document.getElementById('signup-password').value;
             const errorEl = document.getElementById('signup-error');
             const submitBtn = document.getElementById('signup-submit-btn');
 
@@ -189,18 +193,21 @@
                     <button id="verify-otp-btn" class="w-full">Verify & Activate</button>
                     <p id="otp-error" class="text-red-500 text-sm mt-2 h-5"></p>
                     
-                    <p class="mt-6 text-xs text-gray-400">
+                    <div class="mt-6 text-xs text-gray-400">
                         Didn't receive a code? <br>
-                        <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium mt-1">Try signing up again</button>
-                    </p>
+                        <button id="resend-otp-btn" class="text-blue-600 hover:underline font-medium mt-1">Resend Code</button>
+                        <span class="mx-1 text-gray-300">|</span>
+                        <button onclick="location.reload()" class="text-gray-500 hover:underline font-medium mt-1">Change Email</button>
+                        <p id="resend-status" class="text-green-600 mt-2 font-medium h-4"></p>
+                    </div>
                 </div>
             `;
 
-            // Attach event listener to the new button
             document.getElementById('verify-otp-btn').addEventListener('click', handleOTPVerification);
+            document.getElementById('resend-otp-btn').addEventListener('click', handleResendOTP);
         }
 
-        // --- Handle OTP Verification API Call ---
+        // --- Handle OTP Verification ---
         async function handleOTPVerification() {
             const otpCode = document.getElementById('otp-code').value.trim();
             const errorEl = document.getElementById('otp-error');
@@ -230,7 +237,7 @@
                             <i class="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
                             <h1 class="text-2xl font-bold mb-2">Verified!</h1>
                             <p class="text-gray-600 mb-6">Your account is active. You can now sign in.</p>
-                            <a href="/login" class="bg-blue-600 text-white px-8 py-3 rounded-full font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-colors">
+                            <a href="/login" class="bg-blue-600 text-white px-8 py-3 rounded-full font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-colors inline-block">
                                 Sign In Now
                             </a>
                         </div>
@@ -245,6 +252,58 @@
                 verifyBtn.disabled = false;
                 verifyBtn.textContent = "Verify & Activate";
             }
+        }
+
+        // --- Handle Resend OTP ---
+        async function handleResendOTP() {
+            const resendBtn = document.getElementById('resend-otp-btn');
+            const statusEl = document.getElementById('resend-status');
+            const errorEl = document.getElementById('otp-error');
+
+            resendBtn.disabled = true;
+            statusEl.textContent = "Sending...";
+            errorEl.textContent = "";
+
+            try {
+                const response = await fetch('/api/resend_otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: tempUserEmail })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    statusEl.textContent = "New code sent!";
+                    startResendTimer(resendBtn, statusEl);
+                } else {
+                    errorEl.textContent = data.error || "Failed to resend.";
+                    resendBtn.disabled = false;
+                    statusEl.textContent = "";
+                }
+            } catch (error) {
+                errorEl.textContent = "Connection error.";
+                resendBtn.disabled = false;
+                statusEl.textContent = "";
+            }
+        }
+
+        // --- Resend Timer Utility ---
+        function startResendTimer(btn, status) {
+            let timeLeft = 30;
+            const originalText = "Resend Code";
+            
+            const timer = setInterval(() => {
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    status.textContent = "";
+                } else {
+                    btn.textContent = `Resend in ${timeLeft}s`;
+                    timeLeft -= 1;
+                }
+            }, 1000);
         }
     </script>
 </body>
