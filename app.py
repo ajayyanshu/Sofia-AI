@@ -1,4 +1,4 @@
-import base64
+import base64 
 import io
 import os
 import re
@@ -14,7 +14,7 @@ import fitz  # PyMuPDF
 import google.generativeai as genai
 import requests
 from flask import (Flask, jsonify, render_template, request, session, redirect,
-                   url_for, flash, make_response, abort)
+                   url_for, flash, make_response)
 from flask_cors import CORS
 from PIL import Image
 from pymongo import MongoClient
@@ -22,10 +22,8 @@ from bson.objectid import ObjectId
 from youtube_transcript_api import YouTubeTranscriptApi
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
-from flask_mail import Mail, Message
 
-# --- NEW IMPORT FOR NATURAL SPEAKER SOUND ---
-from gtts import gTTS 
+# Note: We removed Flask-Mail imports as we are now using Brevo API directly via requests
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
@@ -40,27 +38,14 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 MONGO_URI = os.environ.get("MONGO_URI")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-SERPER_API_KEY = os.environ.get("SERPER_API_KEY") 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ajay@123.com") 
+SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
-# --- Email Configuration ---
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
-app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', '1', 't']
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD') 
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+# --- Brevo (Email) Configuration ---
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com") # Must be verified in Brevo
 
-mail = Mail(app)
-
-def send_async_email(app, msg):
-    with app.app_context():
-        try:
-            mail.send(msg)
-            print("✅ Email sent successfully in background.")
-        except Exception as e:
-            print(f"BACKGROUND_EMAIL_ERROR: {e}")
+if not BREVO_API_KEY:
+    print("CRITICAL WARNING: BREVO_API_KEY not found. Email features will not work.")
 
 # --- API Services Configuration ---
 if GOOGLE_API_KEY:
@@ -72,12 +57,12 @@ else:
 if YOUTUBE_API_KEY:
     print("✅ YouTube API Key loaded.")
 else:
-    print("CRITICAL WARNING: YOUTUBE_API_KEY not found.")
+    print("CRITICAL WARNING: YOUTUBE_API_KEY not found. YouTube features will be disabled.")
 
 if SERPER_API_KEY:
     print("✅ Serper API Key (for web search) loaded.")
 else:
-    print("CRITICAL WARNING: SERPER_API_KEY not found.")
+    print("CRITICAL WARNING: SERPER_API_KEY not found. AI web search will be disabled.")
 
 # --- MongoDB Configuration ---
 mongo_client = None
@@ -85,7 +70,7 @@ chat_history_collection = None
 temporary_chat_collection = None
 conversations_collection = None
 users_collection = None
-library_collection = None 
+library_collection = None
 
 if MONGO_URI:
     try:
@@ -93,6 +78,7 @@ if MONGO_URI:
         db = mongo_client.get_database("ai_assistant_db")
         db.command('ping')
         print("✅ Successfully pinged MongoDB.")
+        
         chat_history_collection = db.get_collection("chat_history")
         temporary_chat_collection = db.get_collection("temporary_chats")
         conversations_collection = db.get_collection("conversations")
@@ -102,7 +88,7 @@ if MONGO_URI:
     except Exception as e:
         print(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
 else:
-    print("CRITICAL WARNING: MONGO_URI not found.")
+    print("CRITICAL WARNING: MONGO_URI not found. Data will not be saved.")
 
 # --- Flask-Login Configuration ---
 login_manager = LoginManager()
@@ -117,6 +103,7 @@ class User(UserMixin):
         self.isAdmin = user_data.get("isAdmin", False)
         self.isPremium = user_data.get("isPremium", False)
         self.session_id = user_data.get("session_id")
+        self.is_verified = user_data.get("is_verified", False)
 
     @staticmethod
     def get(user_id):
@@ -141,12 +128,45 @@ def before_request_callback():
             flash("You have been logged out from another device.", "info")
             return redirect(url_for('login_page'))
 
-
 # --- GitHub Configuration ---
 GITHUB_USER = os.environ.get("GITHUB_USER")
 GITHUB_REPO = os.environ.get("GITHUB_REPO")
 GITHUB_FOLDER_PATH = os.environ.get("GITHUB_FOLDER_PATH", "")
-PDF_KEYWORDS = {}
+PDF_KEYWORDS = {} # Configure your keywords here
+
+# --- Helper: Send Email via Brevo ---
+def send_brevo_email(to_email, subject, html_content):
+    """Sends an email using the Brevo (Sendinblue) API."""
+    if not BREVO_API_KEY:
+        print("EMAIL SKIP: BREVO_API_KEY is not set.")
+        return False
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": BREVO_API_KEY,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {"email": SENDER_EMAIL, "name": "Sofia AI"},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status() # Raise error for bad status codes
+        print(f"✅ Email sent successfully to {to_email}")
+        return True
+    except Exception as e:
+        print(f"❌ BREVO EMAIL ERROR: {e}")
+        return False
+
+def send_async_brevo_email(app, to_email, subject, html_content):
+    """Wrapper to run email sending in a background thread."""
+    with app.app_context():
+        send_brevo_email(to_email, subject, html_content)
 
 
 # --- Page Rendering Routes ---
@@ -154,16 +174,22 @@ PDF_KEYWORDS = {}
 @app.route('/')
 @login_required
 def home():
+    """Renders the main chat application."""
+    if not current_user.is_verified:
+        logout_user()
+        return redirect(url_for('login_page', error="Please verify your email address."))
     return render_template('index.html') 
 
 @app.route('/login.html', methods=['GET'])
 def login_page():
+    """Renders the login page."""
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/signup.html', methods=['GET'])
 def signup_page():
+    """Renders the signup page."""
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     return render_template('signup.html')
@@ -175,7 +201,10 @@ def login_redirect():
 @app.route('/signup')
 def signup_redirect():
     return redirect(url_for('signup_page'))
-
+  
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template('reset_password.html')
 
 # --- API Authentication Routes ---
 
@@ -185,6 +214,7 @@ def api_signup():
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
 
     if not all([name, email, password]):
         return jsonify({'success': False, 'error': 'Please fill out all fields.'}), 400
@@ -195,9 +225,17 @@ def api_signup():
     if users_collection.find_one({"email": email}):
         return jsonify({'success': False, 'error': 'An account with this email already exists.'}), 409
 
+    # Generate a 6-digit OTP code
+    otp_code = str(random.randint(100000, 999999))
+
     new_user = {
-        "name": name, "email": email, "password": password,
-        "isAdmin": email == ADMIN_EMAIL, "isPremium": False, "is_verified": True,
+        "name": name, 
+        "email": email, 
+        "password": password, 
+        "isAdmin": email == ADMIN_EMAIL, 
+        "isPremium": False, 
+        "is_verified": False,
+        "verification_token": otp_code, # Store OTP in the verification_token field
         "session_id": str(uuid.uuid4()),
         "usage_counts": { "messages": 0, "webSearches": 0 },
         "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
@@ -205,7 +243,51 @@ def api_signup():
     }
     users_collection.insert_one(new_user)
 
-    return jsonify({'success': True, 'message': 'Account created successfully!'})
+    # Send Verification Email with OTP
+    html_content = f"""
+    <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="text-align: center; color: #333;">Welcome to Sofia AI, {name}!</h2>
+        <p style="font-size: 16px; color: #555;">Please use the following code to verify your email address and activate your account:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #FF4B2B; background: #f9f9f9; padding: 10px 20px; border-radius: 5px; border: 1px dashed #FF4B2B;">
+                {otp_code}
+            </span>
+        </div>
+        <p style="font-size: 14px; color: #888; text-align: center;">This code will expire shortly. If you did not request this, please ignore this email.</p>
+    </div>
+    """
+    
+    Thread(target=send_async_brevo_email, args=(app, email, "Your Sofia AI Verification Code", html_content)).start()
+
+    return jsonify({'success': True, 'message': 'OTP sent! Please check your email.'})
+
+
+@app.route('/api/verify_otp', methods=['POST'])
+def api_verify_otp():
+    """Endpoint to verify the 6-digit OTP code."""
+    data = request.get_json()
+    email = data.get('email')
+    otp = data.get('otp')
+
+    if not all([email, otp]):
+        return jsonify({'success': False, 'error': 'Email and OTP are required.'}), 400
+
+    if users_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+
+    # Find user with matching email and OTP code
+    user = users_collection.find_one({"email": email, "verification_token": otp})
+
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid or incorrect OTP.'}), 400
+
+    # Update user to verified and remove the OTP token
+    users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"is_verified": True}, "$unset": {"verification_token": 1}}
+    )
+
+    return jsonify({'success': True, 'message': 'Account verified successfully!'})
 
 
 @app.route('/api/login', methods=['POST'])
@@ -223,18 +305,13 @@ def api_login():
     user_data = users_collection.find_one({"email": email})
 
     if user_data and user_data.get('password') == password:
+        if not user_data.get('is_verified', False):
+             return jsonify({'success': False, 'error': 'Please verify your email address first.'}), 403
+
         new_session_id = str(uuid.uuid4())
-        
-        # --- ADMIN FEATURE: UPDATE LAST LOGIN TIME ---
-        users_collection.update_one(
-            {'_id': user_data['_id']}, 
-            {'$set': {
-                'session_id': new_session_id,
-                'last_login': datetime.utcnow()
-            }}
-        )
-        
+        users_collection.update_one({'_id': user_data['_id']}, {'$set': {'session_id': new_session_id}})
         user_data['session_id'] = new_session_id
+
         user_obj = User(user_data)
         login_user(user_obj)
         session['session_id'] = new_session_id
@@ -263,13 +340,14 @@ def request_password_reset():
     
     reset_url = url_for('home', _external=True) + f'reset-password?token={reset_token}'
     
-    try:
-        msg = Message("Password Reset Request", recipients=[email])
-        msg.body = f"Click the following link to reset your password: {reset_url}\nThis link will expire in 1 hour."
-        Thread(target=send_async_email, args=(app, msg)).start()
-    except Exception as e:
-        print(f"PASSWORD_RESET_EMAIL_ERROR: {e}")
-        return jsonify({'success': False, 'error': 'Failed to send reset email.'}), 500
+    html_content = f"""
+    <h3>Password Reset Request</h3>
+    <p>You requested a password reset for Sofia AI. Click the link below to reset it:</p>
+    <p><a href="{reset_url}" style="color: #FF4B2B;">Reset Password</a></p>
+    <p>This link expires in 1 hour.</p>
+    """
+    
+    Thread(target=send_async_brevo_email, args=(app, email, "Reset Your Password - Sofia AI", html_content)).start()
         
     return jsonify({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
@@ -297,6 +375,7 @@ def reset_password():
             '$unset': {'password_reset_token': "", 'reset_token_expires_at': ""}
         }
     )
+    
     return jsonify({'success': True, 'message': 'Password has been reset successfully.'})
 
 @app.route('/get_user_info')
@@ -304,6 +383,7 @@ def reset_password():
 def get_user_info():
     user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
     usage_counts = user_data.get('usage_counts', {"messages": 0, "webSearches": 0})
+    
     return jsonify({
         "name": current_user.name,
         "email": current_user.email,
@@ -323,6 +403,7 @@ def logout():
 def logout_all_devices():
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+
     try:
         new_session_id = str(uuid.uuid4())
         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$set': {'session_id': new_session_id}})
@@ -331,11 +412,6 @@ def logout_all_devices():
     except Exception as e:
         print(f"LOGOUT_ALL_ERROR: {e}")
         return jsonify({'success': False, 'error': 'Server error during logout.'}), 500
-
-@app.route('/2fa/setup', methods=['POST'])
-@login_required
-def setup_2fa():
-    return jsonify({'success': False, 'message': '2FA setup is not yet implemented.'}), 501
 
 @app.route('/delete_account', methods=['DELETE'])
 @login_required
@@ -354,10 +430,13 @@ def delete_account():
                 },
                 '$unset': {
                     'name': "",
-                    'session_id': ""
+                    'session_id': "",
+                    'verification_token': "",
+                    'is_verified': ""
                 }
             }
         )
+
         if update_result.matched_count > 0:
             try:
                 logout_user()
@@ -370,12 +449,12 @@ def delete_account():
         print(f"MONGO_DELETE_ERROR: {e}")
         return jsonify({'success': False, 'error': 'Error deleting user details.'}), 500
 
-# --- Status Route ---
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({'status': 'ok'}), 200
 
 # --- Chat History CRUD API ---
+
 @app.route('/api/chats', methods=['GET'])
 @login_required
 def get_chats():
@@ -471,6 +550,7 @@ def rename_chat(chat_id):
 def delete_chat_by_id(chat_id):
     if conversations_collection is None:
         return jsonify({"error": "Database not configured"}), 500
+    
     try:
         result = conversations_collection.delete_one(
             {"_id": ObjectId(chat_id), "user_id": ObjectId(current_user.id)}
@@ -483,13 +563,14 @@ def delete_chat_by_id(chat_id):
         return jsonify({"error": "Could not delete chat"}), 500
 
 # --- Library CRUD API ---
+
 def get_ai_summary(text_content):
     if not GOOGLE_API_KEY:
         return "Summary generation skipped: AI not configured."
     if not text_content or text_content.isspace():
         return "No text content to summarize."
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash") 
+        model = genai.GenerativeModel("gemini-2.5-flash-lite") 
         max_length = 80000 
         if len(text_content) > max_length:
             text_content = text_content[:max_length]
@@ -514,7 +595,7 @@ def run_ai_summary_in_background(app, item_id, text_content):
                     {"$set": {"ai_summary": summary, "ai_summary_status": "completed"}}
                 )
             except Exception as e:
-                print(f"BACKGROUND_MONGO_ERROR: Failed to update summary for {item_id}. Error: {e}")
+                print(f"BACKGROUND_MONGO_ERROR: {e}")
 
 @app.route('/library/upload', methods=['POST'])
 @login_required
@@ -523,7 +604,7 @@ def upload_library_item():
         return jsonify({"error": "Database not configured"}), 500
     
     if 'file' not in request.files:
-        return jsonify({'error': 'No file part in the request'}), 400
+        return jsonify({'error': 'No file part'}), 400
     
     file = request.files['file']
     if file.filename == '':
@@ -553,27 +634,28 @@ def upload_library_item():
         "filename": filename,
         "file_type": file_type,
         "file_size": file_size,
-        "file_data": encoded_file_content, 
+        "file_data": encoded_file_content,
         "extracted_text": extracted_text[:1000],
-        "ai_summary": "Processing...", 
+        "ai_summary": "Processing...",
         "ai_summary_status": "pending",
         "timestamp": datetime.utcnow()
     }
 
     try:
         result = library_collection.insert_one(library_item)
-        new_id = result.inserted_id 
+        new_id = result.inserted_id
+
         if extracted_text and extracted_text != "Image file.":
             Thread(target=run_ai_summary_in_background, args=(app, new_id, extracted_text)).start()
         else:
              library_collection.update_one(
                 {"_id": new_id},
-                {"$set": {"ai_summary": "Not applicable (image or empty file).", "ai_summary_status": "completed"}}
+                {"$set": {"ai_summary": "Not applicable.", "ai_summary_status": "completed"}}
             )
 
         return jsonify({
             "success": True, 
-            "id": str(new_id), 
+            "id": str(new_id),
             "filename": filename,
             "file_type": file_type,
             "timestamp": library_item["timestamp"].isoformat()
@@ -624,6 +706,7 @@ def delete_library_item(item_id):
         return jsonify({"error": "Could not delete library item"}), 500
 
 # --- Chat Logic ---
+
 def extract_text_from_pdf(pdf_bytes):
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -639,7 +722,6 @@ def extract_text_from_docx(docx_bytes):
     except Exception as e:
         print(f"Error extracting DOCX text: {e}")
         return ""
-
 
 @app.route('/chat', methods=['POST'])
 @login_required
@@ -663,7 +745,7 @@ def chat():
         usage = user_data.get('usage_counts', {})
         messages_used = usage.get('messages', 0)
         
-        if messages_used >= 15: 
+        if messages_used >= 15:
             return jsonify({
                 'error': 'You have reached your daily message limit. Please upgrade for unlimited access.',
                 'upgrade_required': True
@@ -697,7 +779,6 @@ def chat():
 
     def call_api(url, headers, json_payload, api_name):
         try:
-            print(f"Attempting to call {api_name} API at {url}...")
             response = requests.post(url, headers=headers, json=json_payload)
             response.raise_for_status()
             result = response.json()
@@ -712,6 +793,7 @@ def chat():
     def search_web(query):
         if not SERPER_API_KEY:
             return "Web search is disabled because the API key is not configured."
+
         url = "https://google.serper.dev/search"
         payload = json.dumps({"q": query})
         headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
@@ -721,7 +803,7 @@ def chat():
             results = response.json()
             snippets = []
             if "organic" in results:
-                for item in results.get("organic", [])[:5]: 
+                for item in results.get("organic", [])[:5]:
                     title = item.get("title", "No Title")
                     snippet = item.get("snippet", "No Snippet")
                     link = item.get("link", "No Link")
@@ -730,50 +812,44 @@ def chat():
                 return "\n\n---\n\n".join(snippets)
             elif "answerBox" in results:
                 answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
-                if answer:
-                    return f"Direct Answer: {answer}"
+                if answer: return f"Direct Answer: {answer}"
             return "No relevant web results found."
         except Exception as e:
             print(f"Error calling Serper API: {e}")
             return f"An error occurred during the web search: {e}"
 
     def search_library(user_id, query):
-        if not library_collection:
-            return None
+        if not library_collection: return None
         try:
             keywords = re.split(r'\s+', query)
             regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
             items_cursor = library_collection.find({
                 "user_id": user_id,
                 "extracted_text": {"$regex": regex_pattern, "$options": "i"}
-            }).limit(3) 
+            }).limit(3)
             snippets = []
             for item in items_cursor:
                 filename = item.get("filename", "Untitled")
                 snippet = item.get("extracted_text", "")
-                context_snippet = snippet[:300] 
+                context_snippet = snippet[:300]
                 snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
-            if snippets:
-                return "\n\n---\n\n".join(snippets)
-            else:
-                return None
+            if snippets: return "\n\n---\n\n".join(snippets)
+            else: return None
         except Exception as e:
-            print(f"Error calling Library search: {e}")
             return None
     
     def should_auto_search(user_message):
         msg_lower = user_message.lower().strip()
-        security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'cross-site scripting', 'cve-', 'zero-day', 'phishing', 'ransomware', 'data breach', 'mitigation', 'pentest', 'exploit']
-        code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(', 'const ', 'let ', 'var ', '<?php', 'public static void', 'console.log']
-        general_search_keywords = ['what is', 'who is', 'where is', 'when did', 'how to', 'latest', 'news', 'in 2025', 'in 2024', 'explain', 'summary of', 'overview of', 'compare']
-        chat_keywords = ['hi', 'hello', 'how are you', 'thanks', 'thank you']
-
+        security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
+        code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
+        general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
+        chat_keywords = ['hi', 'hello', 'thanks']
         if any(msg_lower.startswith(k) for k in chat_keywords): return None
-        if any(k in msg_lower for k in security_keywords): return 'security_search' 
+        if any(k in msg_lower for k in security_keywords): return 'security_search'
         if any(k in user_message for k in code_keywords): return 'code_security_scan'
         if any(k in msg_lower for k in general_search_keywords): return 'web_search'
         if len(user_message.split()) > 6: return 'web_search'
-        return None 
+        return None
 
     try:
         data = request.json
@@ -782,26 +858,23 @@ def chat():
         file_type = data.get('fileType', '')
         is_temporary = data.get('isTemporary', False)
         request_mode = data.get('mode') 
-        ai_response, api_used, model_logged = None, "", ""
-        web_search_context, library_search_context = None, None
-
+        ai_response = None
+        web_search_context = None 
+        library_search_context = None
         is_multimodal = bool(file_data) or "youtube.com" in user_message or "youtu.be" in user_message or any(k in user_message.lower() for k in PDF_KEYWORDS)
 
         if request_mode == 'chat' and not is_multimodal:
             auto_mode = should_auto_search(user_message)
             if auto_mode:
-                request_mode = auto_mode 
+                request_mode = auto_mode
                 if auto_mode in ['web_search', 'security_search']:
                     library_search_context = search_library(ObjectId(current_user.id), user_message)
 
         if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
-            if not SERPER_API_KEY:
-                web_search_context = "Web search is disabled by the server administrator."
-            elif not current_user.isPremium and not current_user.isAdmin:
+            if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
                 searches_used = user_data.get('usage_counts', {}).get('webSearches', 0)
-                if searches_used >= 1: 
-                    web_search_context = "You have already used your daily web search. Please upgrade for unlimited searches."
+                if searches_used >= 1: web_search_context = "Web search limit reached."
                 else:
                     web_search_context = search_web(user_message)
                     users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
@@ -810,14 +883,9 @@ def chat():
         
         gemini_history = []
         openai_history = []
-        
         if conversations_collection is not None and not is_temporary:
             try:
-                recent_conversation = conversations_collection.find_one(
-                    {"user_id": ObjectId(current_user.id)},
-                    sort=[("timestamp", -1)] 
-                )
-
+                recent_conversation = conversations_collection.find_one({"user_id": ObjectId(current_user.id)}, sort=[("timestamp", -1)])
                 if recent_conversation and 'messages' in recent_conversation:
                     past_messages = recent_conversation['messages'][-10:]
                     for msg in past_messages:
@@ -828,96 +896,51 @@ def chat():
                         openai_role = 'user' if role == 'user' else 'assistant'
                         openai_history.append({"role": openai_role, "content": content})
             except Exception as e:
-                print(f"Error fetching chat history from MongoDB: {e}")
+                print(f"Error fetching chat history: {e}")
 
         openai_history.append({"role": "user", "content": user_message})
 
         if not is_multimodal and user_message.strip():
-            ai_response = None
             if request_mode == 'code_security_scan':
-                CODE_SECURITY_PROMPT = (
-                    "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst modeled after Google's internal security review tools. "
-                    "A user has submitted a code snippet for review. Your task is to perform a rigorous security and vulnerability analysis. "
-                    "The output MUST be a professional-grade security report formatted in Markdown.\n\n"
-                    "**SECURITY ANALYSIS REPORT**\n\n"
-                    "**1. Executive Summary:**\n   - A high-level overview of the code's purpose and its primary security posture.\n\n"
-                    "**2. Vulnerability Findings:**\n   - **[Severity: Critical/High/Medium/Low] - [Vulnerability Type]**\n"
-                    "     - **Location:** (Quote the problematic line(s).)\n     - **Analysis:** (Detailed explanation.)\n"
-                    "     - **Recommended Mitigation:** (Provide the corrected, secure code snippet wrapped in ```language blocks.)\n\n"
-                    "**3. Secure Coding Recommendations:**\n   - General advice referencing standards (OWASP Top 10).\n\n"
-                    "**4. Overall Security Rating:** (Excellent, Good, Fair, Poor, Critical)\n\n"
-                    "--- USER SUBMITTED CODE ---\n"
-                )
+                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst..."
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Security Scan)")
-            
-            elif (web_search_context or library_search_context) and not ai_response:
-                GENERAL_SYSTEM_PROMPT = "You are a helpful assistant. Answer based *only* on the provided context. Cite sources [Source: link] or [Source: Filename]."
-                SECURITY_SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a specialized AI Security Analyst. Answer the cybersecurity question using *only* the provided context. Cite sources."
-                system_prompt = SECURITY_SYSTEM_PROMPT if request_mode == 'security_search' else GENERAL_SYSTEM_PROMPT
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Scan)")
+            elif (web_search_context or library_search_context):
+                SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
                 context_parts = []
                 if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
-                context_prompt = "\n\n".join(context_parts)
-                search_augmented_history = [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"{context_prompt}\n\n--- USER QUESTION ---\n{user_message}"}]
-                ai_response = call_api("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
-                    
-            elif not ai_response and GROQ_API_KEY:
-                ai_response = call_api( "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"}]
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
+            elif GROQ_API_KEY:
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
         if not ai_response:
-            model_name = "gemini-2.5-flash" 
-            model = genai.GenerativeModel(model_name)
+            model = genai.GenerativeModel("gemini-2.5-flash-lite")
             prompt_parts = [user_message] if user_message else []
-
-            if request_mode == 'code_security_scan':
-                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L', a specialized AI Code Security Analyst. Review this code for vulnerabilities. Output a professional Markdown report.\n\n--- USER SUBMITTED CODE ---\n" + user_message
-                prompt_parts = [CODE_SECURITY_PROMPT]
-            elif web_search_context or library_search_context:
-                system_prompt = "You are 'Sofia-Sec-L', an AI Security Analyst." if request_mode == 'security_search' else "You are a helpful assistant."
-                context_parts = []
-                if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
-                if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
-                prompt_parts = [f"{system_prompt}\n\n{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"]
-            elif "youtube.com" in user_message or "youtu.be" in user_message:
+            if "youtube.com" in user_message or "youtu.be" in user_message:
                 video_id = get_video_id(user_message)
                 transcript = get_youtube_transcript(video_id) if video_id else None
                 if transcript: prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
                 else: return jsonify({'response': "Sorry, couldn't get the transcript."})
-            elif any(k in user_message.lower() for k in PDF_KEYWORDS):
-                fname = next((fname for kw, fname in PDF_KEYWORDS.items() if kw in user_message.lower()), None)
-                fbytes = get_file_from_github(fname)
-                if fbytes: prompt_parts.append(f"\n--- Document ---\n{extract_text_from_pdf(fbytes)}")
-                else: return jsonify({'response': f"Sorry, could not download '{fname}'."})
             elif file_data:
                 fbytes = base64.b64decode(file_data)
                 if 'pdf' in file_type: prompt_parts.append(extract_text_from_pdf(fbytes))
                 elif 'word' in file_type: prompt_parts.append(extract_text_from_docx(fbytes))
                 elif 'image' in file_type: prompt_parts.append(Image.open(io.BytesIO(fbytes)))
 
-            if not prompt_parts: return jsonify({'response': "Please ask a question or upload a file."})
-            if isinstance(prompt_parts[-1], Image.Image) and not any(isinstance(p, str) and p.strip() for p in prompt_parts):
-                prompt_parts.insert(0, "Describe this image.")
-            
             try:
                 if web_search_context or library_search_context or request_mode == 'code_security_scan':
-                    full_prompt = prompt_parts
+                    response = model.generate_content(prompt_parts)
                 else:
                     full_prompt = gemini_history + [{'role': 'user', 'parts': prompt_parts}]
-                response = model.generate_content(full_prompt)
+                    response = model.generate_content(full_prompt)
                 ai_response = response.text
             except Exception as e:
-                print(f"Error calling Gemini API: {e}")
-                try:
-                    response = model.generate_content(prompt_parts)
-                    ai_response = response.text
-                except Exception as e2:
-                    ai_response = "Sorry, I encountered an error trying to respond."
+                ai_response = "Sorry, I encountered an error trying to respond."
 
         return jsonify({'response': ai_response})
-
     except Exception as e:
-        print(f"A critical error occurred in /chat: {e}")
         return jsonify({'response': "Sorry, an internal error occurred."})
 
 @app.route('/save_chat_history', methods=['POST'])
@@ -929,71 +952,20 @@ def save_chat_history():
         user_id = ObjectId(current_user.id)
         user_name = current_user.name
         history_cursor = conversations_collection.find({"user_id": user_id}).sort("timestamp", 1)
-        html_content = f"<!DOCTYPE html><html><body><h1>Chat History for {user_name}</h1>"
+        html_content = f"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><title>Chat History for {user_name}</title></head><body><h1>Chat History: {user_name}</h1>"
         for conversation in history_cursor:
-            html_content += f"<h3>{conversation.get('title', 'Untitled')}</h3>"
+            conv_title = conversation.get('title', 'Untitled Chat')
+            html_content += f"<h3>Conversation: {conv_title}</h3>"
             for message in conversation.get('messages', []):
-                role = "You" if message.get('sender') == 'user' else "Sofia AI"
-                html_content += f"<p><strong>{role}:</strong> {message.get('text', '')}</p>"
+                sender = "You" if message.get('sender') == 'user' else "Sofia AI"
+                html_content += f"<p><strong>{sender}:</strong> {message.get('text', '')}</p>"
         html_content += "</body></html>"
         response = make_response(html_content)
         response.headers["Content-Disposition"] = "attachment; filename=chat_history.html"
         response.headers["Content-Type"] = "text/html"
         return response
     except Exception as e:
-        print(f"Error generating chat history HTML: {e}")
         return jsonify({'success': False, 'error': 'Failed to generate chat history.'}), 500
-
-# --- ADMIN DASHBOARD ROUTE (ADDED) ---
-@app.route('/admin_dashboard')
-@login_required
-def admin_dashboard():
-    # 1. SECURITY CHECK: Only allow Admin
-    if not current_user.isAdmin:
-        return "Access Denied: You are not an Admin.", 403
-
-    # 2. Fetch All Users & Usage Logs
-    users = list(users_collection.find().sort("last_login", -1))
-
-    # 3. Fetch Recent Chats (Read-Only)
-    recent_chats = list(conversations_collection.find().sort("timestamp", -1).limit(50))
-
-    # 4. Fetch Uploaded Images/Files
-    library_files = list(library_collection.find().sort("timestamp", -1).limit(20))
-
-    return render_template('admin.html', users=users, chats=recent_chats, files=library_files)
-
-# --- NEW: Text-to-Speech Endpoint for Natural Sound ---
-@app.route('/api/tts', methods=['POST'])
-@login_required
-def text_to_speech_api():
-    """
-    Generates an MP3 audio file from text using Google Text-to-Speech (gTTS).
-    Returns the audio data as a base64 string for the frontend to play.
-    """
-    data = request.get_json()
-    text = data.get('text')
-    
-    if not text:
-        return jsonify({'error': 'No text provided'}), 400
-    
-    try:
-        # Generate audio using gTTS (natural sounding Google voice)
-        tts = gTTS(text=text, lang='en', slow=False)
-        
-        # Save to in-memory byte buffer
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        
-        # Encode to base64
-        encoded_audio = base64.b64encode(fp.read()).decode('utf-8')
-        
-        return jsonify({'success': True, 'audio_base64': encoded_audio})
-        
-    except Exception as e:
-        print(f"TTS_ERROR: {e}")
-        return jsonify({'error': 'Failed to generate audio'}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
