@@ -106,8 +106,9 @@ let usageCounts = {
     messages: 0,
     webSearches: 0
 };
+// UPDATED LIMITS FOR MONTHLY CYCLE
 const usageLimits = {
-    messages: 15,
+    messages: 500, // Increased to 500/month since reset is now monthly
     webSearches: 1
 };
 let isPremium = false;
@@ -358,7 +359,7 @@ const translations = {
         emailVerifiedMsg: 'Your email has been verified.',
         // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'Feature',
-        dailyTextMessages: 'Daily Text Messages',
+        dailyTextMessages: 'Text Messages',
         voiceCommands: 'Voice-to-Voice Commands',
         readDocs: 'Read Image/PDF/Docs',
         webSearchLimit: 'Web Search',
@@ -368,10 +369,10 @@ const translations = {
         perDay: 'per day',
         perMonth: '1 per month (5 pages)',
         yesForever: '✔ Yes, Forever',
-        msgsUsedMonth: 'messages used this day',
+        msgsUsedMonth: 'messages used this month',
         freePlanTitle: 'Free Plan',
         premiumPlanTitle: 'Sofia AI Pro',
-        upgradeBtnText: 'Upgrade for ₹99/month',
+        upgradeBtnText: 'Upgrade for ₹49/month', // UPDATED PRICE
         used: 'Used'
     },
     'hi': { 
@@ -413,7 +414,7 @@ const translations = {
         emailVerifiedMsg: 'आपका ईमेल सत्यापित हो गया है।',
         // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'सुविधा',
-        dailyTextMessages: 'दैनिक टेक्स्ट संदेश',
+        dailyTextMessages: 'टेक्स्ट संदेश',
         voiceCommands: 'वॉयस-टू-वॉयस कमांड',
         readDocs: 'छवि/पीडीएफ/दस्तावेज़ पढ़ें',
         webSearchLimit: 'वेब खोज',
@@ -426,7 +427,7 @@ const translations = {
         msgsUsedMonth: 'इस महीने उपयोग किए गए संदेश',
         freePlanTitle: 'फ्री प्लान',
         premiumPlanTitle: 'सोफिया एआई प्रो',
-        upgradeBtnText: '₹99/माह में अपग्रेड करें',
+        upgradeBtnText: '₹49/माह में अपग्रेड करें', // UPDATED PRICE
         used: 'उपयोग किया गया'
     },
     'bn': { 
@@ -468,7 +469,7 @@ const translations = {
         emailVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়েছে।',
         // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'বৈশিষ্ট্য',
-        dailyTextMessages: 'দৈনিক টেক্সট বার্তা',
+        dailyTextMessages: 'টেক্সট বার্তা',
         voiceCommands: 'ভয়েস-টু-ভয়েস কমান্ড',
         readDocs: 'ছবি/পিডিএফ/ডক্স পড়ুন',
         webSearchLimit: 'ওয়েব অনুসন্ধান',
@@ -481,7 +482,7 @@ const translations = {
         msgsUsedMonth: 'এই মাসে ব্যবহৃত বার্তা',
         freePlanTitle: 'ফ্রি প্ল্যান',
         premiumPlanTitle: 'সোফিয়া এআই প্রো',
-        upgradeBtnText: '৯৯ টাকা/মাসে আপগ্রেড করুন',
+        upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', // UPDATED PRICE
         used: 'ব্যবহৃত'
     }
 };
@@ -550,7 +551,7 @@ function applyLanguage(lang) {
         if (headerRow) {
             headerRow.children[0].textContent = translations[lang]['feature'];
             headerRow.children[1].textContent = translations[lang]['freePlanTitle'];
-            headerRow.children[2].innerHTML = `${translations[lang]['premiumPlanTitle']} <span class="text-sm font-normal">(₹99/month)</span>`;
+            headerRow.children[2].innerHTML = `${translations[lang]['premiumPlanTitle']} <span class="text-sm font-normal">(₹49/month)</span>`;
         }
 
         // Table Rows
@@ -558,7 +559,7 @@ function applyLanguage(lang) {
         
         if (rows.length >= 5) {
             rows[0].children[0].textContent = translations[lang]['dailyTextMessages'];
-            rows[0].children[1].textContent = `15 ${translations[lang]['messages']}`;
+            rows[0].children[1].textContent = `${usageLimits.messages} ${translations[lang]['messages']}`; // Adjusted to dynamic
             rows[0].children[2].textContent = translations[lang]['unlimited'];
 
             rows[1].children[0].textContent = translations[lang]['voiceCommands'];
@@ -1602,7 +1603,7 @@ function updateUsageUI() {
 razorpayBtn.addEventListener('click', () => {
      const options = {
         "key": "rzp_test_YourKeyHere", // IMPORTANT: Replace with your Razorpay Test Key ID
-        "amount": "9900", // Amount in the smallest currency unit (99 * 100 = 9900 paise)
+        "amount": "4900", // UPDATED AMOUNT (49 INR)
         "currency": "INR",
         "name": "Sofia AI",
         "description": "Premium Plan - Monthly",
