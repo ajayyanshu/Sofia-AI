@@ -194,17 +194,13 @@
                     <p id="otp-error" class="text-red-500 text-sm mt-2 h-5"></p>
                     
                     <div class="mt-6 text-xs text-gray-400">
-                        Didn't receive a code? <br>
-                        <button id="resend-otp-btn" class="text-blue-600 hover:underline font-medium mt-1">Resend Code</button>
-                        <span class="mx-1 text-gray-300">|</span>
-                        <button onclick="location.reload()" class="text-gray-500 hover:underline font-medium mt-1">Change Email</button>
-                        <p id="resend-status" class="text-green-600 mt-2 font-medium h-4"></p>
+                        Didn't receive a code? 
+                        <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium mt-1">Change Email</button>
                     </div>
                 </div>
             `;
 
             document.getElementById('verify-otp-btn').addEventListener('click', handleOTPVerification);
-            document.getElementById('resend-otp-btn').addEventListener('click', handleResendOTP);
         }
 
         // --- Handle OTP Verification ---
@@ -252,58 +248,6 @@
                 verifyBtn.disabled = false;
                 verifyBtn.textContent = "Verify & Activate";
             }
-        }
-
-        // --- Handle Resend OTP ---
-        async function handleResendOTP() {
-            const resendBtn = document.getElementById('resend-otp-btn');
-            const statusEl = document.getElementById('resend-status');
-            const errorEl = document.getElementById('otp-error');
-
-            resendBtn.disabled = true;
-            statusEl.textContent = "Sending...";
-            errorEl.textContent = "";
-
-            try {
-                const response = await fetch('/api/resend_otp', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email: tempUserEmail })
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    statusEl.textContent = "New code sent!";
-                    startResendTimer(resendBtn, statusEl);
-                } else {
-                    errorEl.textContent = data.error || "Failed to resend.";
-                    resendBtn.disabled = false;
-                    statusEl.textContent = "";
-                }
-            } catch (error) {
-                errorEl.textContent = "Connection error.";
-                resendBtn.disabled = false;
-                statusEl.textContent = "";
-            }
-        }
-
-        // --- Resend Timer Utility ---
-        function startResendTimer(btn, status) {
-            let timeLeft = 30;
-            const originalText = "Resend Code";
-            
-            const timer = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    btn.disabled = false;
-                    btn.textContent = originalText;
-                    status.textContent = "";
-                } else {
-                    btn.textContent = `Resend in ${timeLeft}s`;
-                    timeLeft -= 1;
-                }
-            }, 1000);
         }
     </script>
 </body>
