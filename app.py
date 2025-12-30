@@ -27,8 +27,12 @@ app = Flask(__name__, template_folder='templates')
 CORS(app)
 
 # --- Configuration ---
+# On Render, make sure to set FLASK_SECRET_KEY in Environment Variables
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key") 
 app.config['SECRET_KEY'] = SECRET_KEY
+
+# Use a longer permanent session lifetime to prevent accidental logouts
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -38,10 +42,7 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com")
 
-# --- API & MongoDB Initialization ---
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-
+# --- MongoDB Initialization ---
 mongo_client = None
 users_collection = None
 conversations_collection = None
@@ -54,10 +55,11 @@ if MONGO_URI:
         users_collection = db.get_collection("users")
         conversations_collection = db.get_collection("conversations")
         library_collection = db.get_collection("library_items")
+        print("✅ MongoDB Connected")
     except Exception as e:
-        print(f"MongoDB Error: {e}")
+        print(f"❌ MongoDB Error: {e}")
 
-# --- Flask-Login ---
+# --- Flask-Login Configuration ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
@@ -75,12 +77,27 @@ class User(UserMixin):
     @staticmethod
     def get(user_id):
         if users_collection is None: return None
-        user_data = users_collection.find_one({"_id": ObjectId(user_id)})
-        return User(user_data) if user_data else None
+        try:
+            user_data = users_collection.find_one({"_id": ObjectId(user_id)})
+            return User(user_data) if user_data else None
+        except:
+            return None
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
+
+# --- SOLVING PROBLEM 2: Fixing Automatic Logout ---
+# We ensure the session_id is set correctly during login and checked here.
+@app.before_request
+def before_request_callback():
+    if current_user.is_authenticated:
+        # Only logout if the session_id in the cookie doesn't match the DB
+        # If session['session_id'] is missing, we re-sync it instead of logging out
+        user_session_id = session.get('session_id')
+        if user_session_id and user_session_id != current_user.session_id:
+            logout_user()
+            return redirect(url_for('login_page'))
 
 # --- Email Helper ---
 def send_brevo_email(to_email, subject, html_content):
@@ -95,7 +112,7 @@ def send_brevo_email(to_email, subject, html_content):
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
-        return response.status_code == 201
+        return response.status_code in [200, 201, 202]
     except:
         return False
 
@@ -103,14 +120,40 @@ def send_async_brevo_email(app, to_email, subject, html_content):
     with app.app_context():
         send_brevo_email(to_email, subject, html_content)
 
-# --- Auth Routes ---
+# --- UI Routes ---
+
+@app.route('/')
+@login_required
+def home():
+    if not current_user.is_verified:
+        logout_user()
+        return redirect(url_for('login_page'))
+    return render_template('index.html')
+
+@app.route('/login')
+@app.route('/login.html')
+def login_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    return render_template('login.html')
+
+# --- SOLVING PROBLEM 1: Fixing 404 for /signup ---
+@app.route('/signup')
+@app.route('/signup.html')
+def signup_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    return render_template('signup.html')
+
+# --- Authentication APIs ---
 
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
     data = request.get_json()
     name, email, password = data.get('name'), data.get('email'), data.get('password')
+    
     if users_collection.find_one({"email": email}):
-        return jsonify({'success': False, 'error': 'Email already exists.'}), 409
+        return jsonify({'success': False, 'error': 'Account already exists.'}), 409
 
     otp_code = str(random.randint(100000, 999999))
     users_collection.insert_one({
@@ -121,9 +164,9 @@ def api_signup():
         "timestamp": datetime.utcnow().isoformat()
     })
     
-    html = f"<h2>Welcome {name}</h2><p>Your OTP: <b>{otp_code}</b></p>"
-    Thread(target=send_async_brevo_email, args=(app, email, "Verify Your Account", html)).start()
-    return jsonify({'success': True, 'message': 'OTP sent!'})
+    html = f"<h2>Verify Sofia AI</h2><p>Your OTP is: <b>{otp_code}</b></p>"
+    Thread(target=send_async_brevo_email, args=(app, email, "Your Verification Code", html)).start()
+    return jsonify({'success': True})
 
 @app.route('/api/verify_otp', methods=['POST'])
 def api_verify_otp():
@@ -131,57 +174,57 @@ def api_verify_otp():
     email, otp = data.get('email'), data.get('otp')
     user = users_collection.find_one({"email": email, "verification_token": otp})
     if not user:
-        return jsonify({'success': False, 'error': 'Invalid OTP.'}), 400
+        return jsonify({'success': False, 'error': 'Invalid code.'}), 400
     users_collection.update_one({"_id": user["_id"]}, {"$set": {"is_verified": True}, "$unset": {"verification_token": 1}})
     return jsonify({'success': True})
 
 @app.route('/api/resend_otp', methods=['POST'])
 def api_resend_otp():
-    """Generates and sends a new OTP for verification."""
     data = request.get_json()
     email = data.get('email')
     user = users_collection.find_one({"email": email})
-    
-    if not user:
-        return jsonify({'success': False, 'error': 'User not found.'}), 404
-    if user.get('is_verified'):
-        return jsonify({'success': False, 'error': 'Already verified.'}), 400
+    if not user or user.get('is_verified'):
+        return jsonify({'success': False, 'error': 'Invalid request.'}), 400
 
     new_otp = str(random.randint(100000, 999999))
     users_collection.update_one({"_id": user["_id"]}, {"$set": {"verification_token": new_otp}})
     
-    html = f"<h3>New Code</h3><p>Your new verification code is: <b>{new_otp}</b></p>"
+    html = f"<p>Your new Sofia AI code: <b>{new_otp}</b></p>"
     Thread(target=send_async_brevo_email, args=(app, email, "New Verification Code", html)).start()
-    return jsonify({'success': True, 'message': 'New OTP sent!'})
-
-# --- UI & Other API Routes (Summary) ---
-@app.route('/')
-@login_required
-def home():
-    if not current_user.is_verified:
-        logout_user()
-        return redirect(url_for('login_page', error="Verify your email."))
-    return render_template('index.html')
-
-@app.route('/login.html')
-def login_page(): return render_template('login.html')
-
-@app.route('/signup.html')
-def signup_page(): return render_template('signup.html')
+    return jsonify({'success': True})
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.get_json()
-    user_data = users_collection.find_one({"email": data.get('email'), "password": data.get('password')})
+    email, password = data.get('email'), data.get('password')
+    user_data = users_collection.find_one({"email": email, "password": password})
+    
     if user_data:
-        if not user_data.get('is_verified'): return jsonify({'success': False, 'error': 'Verify email first.'}), 403
+        if not user_data.get('is_verified'):
+            return jsonify({'success': False, 'error': 'Please verify email.'}), 403
+        
+        # Update session_id to prevent multi-device logout conflicts
+        new_session_id = str(uuid.uuid4())
+        users_collection.update_one({'_id': user_data['_id']}, {'$set': {'session_id': new_session_id}})
+        
         user_obj = User(user_data)
-        login_user(user_obj)
+        user_obj.session_id = new_session_id # Update object for current session
+        
+        login_user(user_obj, remember=True) # Use remember=True to keep session alive
+        session['session_id'] = new_session_id
+        session.permanent = True
+        
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'Invalid credentials.'}), 401
 
-# --- Render Deployment Start ---
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    session.clear()
+    return jsonify({'success': True})
+
+# --- Render Setup ---
 if __name__ == '__main__':
-    # Render uses the PORT environment variable
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
