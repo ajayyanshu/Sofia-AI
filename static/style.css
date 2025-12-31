@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* --- General Selection & Behavior --- */
+/* --- General Styles --- */
 ::selection {
     background-color: #3b82f6;
     color: #ffffff;
@@ -9,7 +9,6 @@
 html {
     overscroll-behavior: none;
 }
-
 body {
     overflow: hidden;
     overscroll-behavior: none;
@@ -17,7 +16,7 @@ body {
     background-color: #f8fafc;
 }
 
-/* --- Chat Container & Scrollbar --- */
+/* --- Chat Layout --- */
 .chat-container {
     flex: 1;
     display: flex;
@@ -28,7 +27,6 @@ body {
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
-
 .chat-container::-webkit-scrollbar {
     display: none;
 }
@@ -43,7 +41,6 @@ body {
     line-height: 1.6;
     position: relative;
 }
-
 .user-message {
     background-color: #3b82f6;
     color: white;
@@ -51,16 +48,14 @@ body {
     border-bottom-right-radius: 0.5rem;
     width: fit-content;
 }
-
 .ai-message {
     background-color: #e5e7eb;
     color: #1f2937;
     align-self: flex-start;
     border-bottom-left-radius: 0.5rem;
-    padding-bottom: 2.5rem; /* Space for action icons */
+    padding-bottom: 2.5rem; 
     width: fit-content; 
 }
-
 .ai-message-container {
      display: flex;
      align-items: flex-start;
@@ -70,7 +65,6 @@ body {
      margin-bottom: 0.75rem;
      width: fit-content;
 }
-
 .ai-avatar {
     width: 2.5rem;
     height: 2.5rem;
@@ -82,13 +76,13 @@ body {
     flex-shrink: 0;
 }
 
-/* --- Markdown & System Elements --- */
+/* --- Markdown Styling --- */
 .ai-message ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .ai-message li { margin-bottom: 0.25rem; }
 .ai-message strong, .ai-message b { font-weight: 600; color: #111827; }
 .system-message { background-color: #f87171; color: white; align-self: center; text-align: center; font-size: 0.875rem; padding: 0.5rem 1rem; }
 
-/* --- Input & File Previews --- */
+/* --- Input Area --- */
 #message-input { resize: none; overflow-y: hidden; max-height: 150px; }
 #file-preview-container { padding: 0.5rem 0.5rem 0 0.5rem; display: flex; gap: 0.5rem; }
 .preview-item { position: relative; border-radius: 0.5rem; overflow: hidden; border: 1px solid #e5e7eb; }
@@ -99,25 +93,25 @@ body {
 .doc-preview .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; color: #4b5563; }
 .remove-preview-btn { position: absolute; top: 2px; right: 2px; width: 1.25rem; height: 1.25rem; background-color: rgba(0,0,0,0.5); color: white; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; line-height: 1; }
 
-/* --- Voice Overlay (Animations Removed) --- */
+/* --- Voice Overlay (ANIMATIONS REMOVED) --- */
 #voice-overlay {
     background-color: #000000c0;
     backdrop-filter: blur(8px);
 }
 
-/* Pulse animation removed for Sofia AI listening state */
+/* Removed pulse-mic animation */
 #voice-visualizer {
-    transition: all 0.2s ease-in-out;
+    /* Visualizer is now a static circle */
 }
 
-/* --- Icons & Actions --- */
+/* --- Action Buttons --- */
 .message-actions { position: absolute; bottom: 0.5rem; right: 0.75rem; display: flex; gap: 0.5rem; opacity: 0.7; }
 .action-btn { background: none; border: none; cursor: pointer; color: #6b7280; padding: 0.25rem; border-radius: 9999px; transition: background-color 0.2s, color 0.2s; }
 .action-btn:hover { background-color: #d1d5db; }
 .menu-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s; }
 .menu-item:hover { background-color: #f3f4f6; }
 
-/* Listening bar animation removed - static icon only */
+/* Removed listening-bar animation */
 .listening-bar { 
     width: 3px; 
     height: 12px; 
@@ -125,51 +119,39 @@ body {
     border-radius: 5px; 
 }
 
-/* --- Sidebar & Navigation --- */
+/* --- Sidebar --- */
 #sidebar {
     transition: transform 0.3s ease-in-out;
 }
 .sidebar-item {
      display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer;
-     color: #374151; font-weight: 500;
+     color: #374151; font-medium;
 }
 .sidebar-item:hover { background-color: #e5e7eb; }
-
-/* FIX: Reduced padding to solve extra space problem in Chat History */
 .chat-history-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.35rem 0.75rem; /* Reduced from 0.5rem */
+    padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     cursor: pointer;
     transition: background-color 0.2s;
     font-size: 0.875rem;
     color: #4b5563;
 }
-.chat-history-item .chat-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-grow: 1;
-    margin-right: 0.5rem;
-}
-.chat-history-item:hover { background-color: #e5e7eb; }
 .chat-history-item.active { background-color: #dbeafe; color: #1e40af; }
 
-/* --- Code & Tech Styling --- */
+/* --- Code Blocks --- */
 .ai-message pre {
     position: relative;
-    background-color: #272822; 
+    background-color: #272822;
     border-radius: 0.5rem;
     padding: 1rem;
-    padding-top: 2.5rem; 
+    padding-top: 2.5rem;
     margin-top: 0.75rem;
     margin-bottom: 0.75rem;
     overflow-x: auto;
-    max-width: 100%;
 }
-
 .code-copy-btn {
     position: absolute;
     top: 0.5rem;
@@ -179,38 +161,23 @@ body {
     border-radius: 0.375rem;
     padding: 0.25rem 0.75rem;
     font-size: 0.75rem;
-    font-weight: 600;
     cursor: pointer;
     opacity: 0.7;
 }
 
-/* --- Initial View (Landing) --- */
+/* --- Dark Mode --- */
+.dark body { background-color: #000000; }
+.dark #sidebar { background-color: #111111; border-right-color: #292929;}
+.dark .ai-message { background-color: #222222; color: #e0e0e0; }
+
+/* --- Landing Page Enhancements --- */
 body.initial-view {
     background: linear-gradient(-45deg, #f8fafc, #e0e7ff, #f3e8ff, #e0f2fe);
     background-size: 400% 400%;
     animation: gradientBG 15s ease infinite;
 }
-
 @keyframes gradientBG {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
-
-/* --- Typing Cursor --- */
-.typing-cursor::after {
-    content: '|';
-    margin-left: 5px;
-    color: #4f46e5;
-    animation: blink 1s step-start infinite;
-    font-weight: bold;
-}
-@keyframes blink { 50% { opacity: 0; } }
-
-/* --- Dark Mode Support --- */
-.dark body { background-color: #000000; }
-.dark #sidebar { background-color: #111111; border-right-color: #292929;}
-.dark .chat-history-item { color: #a0a0a0; }
-.dark .chat-history-item:hover { background-color: #252525; }
-.dark .chat-history-item.active { background-color: #1e3a8a; color: #e0e0e0; }
-.dark .ai-message { background-color: #222222; color: #e0e0e0; }
