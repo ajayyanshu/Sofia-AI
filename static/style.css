@@ -95,17 +95,25 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 
 .mode-indicator { display: inline-flex; align-items: center; gap: 0.5rem; background-color: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; }
 
+/* Voice Overlay Styling */
 #voice-overlay {
     background-color: #000000c0;
     backdrop-filter: blur(8px);
 }
-#voice-visualizer.listening {
-    animation: pulse-mic 1.5s infinite ease-in-out;
+
+/* UPDATED: Container for your new voice icon */
+#voice-visualizer-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
-@keyframes pulse-mic { 
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); } 
-    70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); } 
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); } 
+
+/* UPDATED: Specific styling for the image icon (Removed pulse animation) */
+#voice-visualizer {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .message-actions { position: absolute; bottom: 0.5rem; right: 0.75rem; display: flex; gap: 0.5rem; opacity: 0.7; }
@@ -172,6 +180,7 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 #settings-modal, #library-modal, #cyber-modal {
     background-color: rgba(0, 0, 0, 0.5);
 }
+
 /* Improved Dark Mode Styles */
 .dark ::selection {
     background-color: #5899ff;
@@ -319,7 +328,6 @@ pre[class*="language-"] {
  */
 
 /* 1. Breathing Gradient Background (Welcome Screen) */
-/* Adds a subtle moving gradient to the white background */
 body.initial-view {
     background: linear-gradient(-45deg, #f8fafc, #e0e7ff, #f3e8ff, #e0f2fe);
     background-size: 400% 400%;
@@ -339,7 +347,6 @@ body.initial-view {
 }
 
 /* 2. Typing Cursor Effect */
-/* Used by the JavaScript typewriter effect */
 .typing-cursor::after {
     content: '|';
     margin-left: 5px;
@@ -356,7 +363,6 @@ body.initial-view {
 }
 
 /* 3. Floating Input Bar */
-/* Gives the input bar a gentle float on the welcome screen */
 body.initial-view footer .max-w-3xl {
     animation: floatInput 6s ease-in-out infinite;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
@@ -376,7 +382,7 @@ header .text-indigo-600 {
     background: linear-gradient(to right, #4f46e5, #9333ea);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-weight: 800; /* Bolder text to make the gradient visible */
+    font-weight: 800;
 }
 
 /* Adjust gradient for dark mode readability */
