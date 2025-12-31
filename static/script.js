@@ -106,8 +106,9 @@ let usageCounts = {
     messages: 0,
     webSearches: 0
 };
+// UPDATED LIMITS FOR MONTHLY CYCLE
 const usageLimits = {
-    messages: 500, 
+    messages: 500, // Increased to 500/month since reset is now monthly
     webSearches: 1
 };
 let isPremium = false;
@@ -214,7 +215,7 @@ function switchSettingsTab(tab) {
     const contents = document.querySelectorAll('#general-settings-content, #profile-settings-content, #usage-settings-content');
     contents.forEach(c => c.classList.add('hidden'));
 
-    let titleKey = 'settings'; 
+    let titleKey = 'settings'; // Default
     if (tab === 'general') {
         generalTabBtn.classList.add('active', 'bg-gray-100', 'text-gray-800', 'font-semibold');
         generalTabBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
@@ -232,8 +233,9 @@ function switchSettingsTab(tab) {
         titleKey = 'usagePlan';
     }
     
+    // Update title using current language
     settingsContentTitle.textContent = translations[currentLang][titleKey] || translations['en'][titleKey];
-    settingsContentTitle.setAttribute('data-current-tab', titleKey); 
+    settingsContentTitle.setAttribute('data-current-tab', titleKey); // Store for language switching
 }
 
 generalTabBtn.addEventListener('click', (e) => { e.preventDefault(); switchSettingsTab('general'); });
@@ -266,6 +268,7 @@ contactModal.addEventListener('click', (e) => {
 
 // --- Ethical Hacking Mode Logic ---
 cyberTrainingBtn.addEventListener('click', () => {
+    // Close sidebar on mobile if open
     if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
     cyberModal.classList.remove('hidden');
     cyberModal.classList.add('flex');
@@ -282,13 +285,14 @@ toggleHackingModeBtn.addEventListener('click', () => {
     cyberModal.classList.add('hidden');
     cyberModal.classList.remove('flex');
     
+    // Add a system message to chat to confirm mode switch
     const statusMsg = isEthicalHackingMode 
         ? "👨‍💻 **Ethical Hacking Teacher Mode Activated.**\nAsk me about penetration testing, network security, or defense mechanisms."
         : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
         
     addMessage({ text: statusMsg, sender: 'system' });
     
-    if (isEthicalHackingMode) startNewChat(); 
+    if (isEthicalHackingMode) startNewChat(); // Start fresh context for the teacher
 });
 
 function updateHackingModeUI() {
@@ -297,6 +301,7 @@ function updateHackingModeUI() {
         toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Disable Teacher Mode";
         
+        // Optional: Add a visual indicator
         const headerTitle = document.querySelector('header span');
         if (headerTitle) headerTitle.innerHTML = 'Sofia AI <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-2">Ethical Hacker</span>';
         
@@ -305,6 +310,7 @@ function updateHackingModeUI() {
         toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Enable Teacher Mode";
         
+        // Reset header
         const headerTitle = document.querySelector('header span');
         if (headerTitle) headerTitle.textContent = 'Sofia AI';
     }
@@ -351,6 +357,7 @@ const translations = {
         themeLabel: 'Theme',
         emailNotVerifiedMsg: 'Your email is not verified.',
         emailVerifiedMsg: 'Your email has been verified.',
+        // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'Feature',
         dailyTextMessages: 'Text Messages',
         voiceCommands: 'Voice-to-Voice Commands',
@@ -365,7 +372,7 @@ const translations = {
         msgsUsedMonth: 'messages used this month',
         freePlanTitle: 'Free Plan',
         premiumPlanTitle: 'Sofia AI Pro',
-        upgradeBtnText: 'Upgrade for ₹49/month', 
+        upgradeBtnText: 'Upgrade for ₹49/month', // UPDATED PRICE
         used: 'Used'
     },
     'hi': { 
@@ -405,6 +412,7 @@ const translations = {
         themeLabel: 'थीम',
         emailNotVerifiedMsg: 'आपका ईमेल सत्यापित नहीं है।',
         emailVerifiedMsg: 'आपका ईमेल सत्यापित हो गया है।',
+        // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'सुविधा',
         dailyTextMessages: 'टेक्स्ट संदेश',
         voiceCommands: 'वॉयस-टू-वॉयस कमांड',
@@ -419,7 +427,7 @@ const translations = {
         msgsUsedMonth: 'इस महीने उपयोग किए गए संदेश',
         freePlanTitle: 'फ्री प्लान',
         premiumPlanTitle: 'सोफिया एआई प्रो',
-        upgradeBtnText: '₹49/माह में अपग्रेड करें', 
+        upgradeBtnText: '₹49/माह में अपग्रेड करें', // UPDATED PRICE
         used: 'उपयोग किया गया'
     },
     'bn': { 
@@ -459,6 +467,7 @@ const translations = {
         themeLabel: 'থিম',
         emailNotVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়নি।',
         emailVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়েছে।',
+        // --- NEW KEYS FOR USAGE TABLE ---
         feature: 'বৈশিষ্ট্য',
         dailyTextMessages: 'টেক্সট বার্তা',
         voiceCommands: 'ভয়েস-টু-ভয়েস কমান্ড',
@@ -473,7 +482,7 @@ const translations = {
         msgsUsedMonth: 'এই মাসে ব্যবহৃত বার্তা',
         freePlanTitle: 'ফ্রি প্ল্যান',
         premiumPlanTitle: 'সোফিয়া এআই প্রো',
-        upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', 
+        upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', // UPDATED PRICE
         used: 'ব্যবহৃত'
     }
 };
@@ -495,9 +504,13 @@ function applyLanguage(lang) {
         }
     });
 
+    // Handle settings title specifically since it changes with tabs
     const currentTab = settingsContentTitle.getAttribute('data-current-tab') || 'general';
     settingsContentTitle.textContent = translations[lang][currentTab] || translations['en'][currentTab];
 
+    // --- MANUAL UPDATES FOR ELEMENTS MISSING data-lang TAGS ---
+    
+    // 1. Sidebar & Menu Buttons
     const uploadCodeSpan = document.querySelector('#upload-code-btn span');
     if (uploadCodeSpan) uploadCodeSpan.textContent = translations[lang]['uploadCode'];
 
@@ -510,6 +523,7 @@ function applyLanguage(lang) {
     const cyberTrainingSpan = document.querySelector('#cyber-training-btn span');
     if (cyberTrainingSpan) cyberTrainingSpan.textContent = translations[lang]['cyberTraining'];
     
+    // 2. Settings - General Tab (Theme Buttons & Label)
     const themeLabel = document.querySelector('#general-settings-content label');
     if (themeLabel) themeLabel.textContent = translations[lang]['themeLabel'];
 
@@ -522,14 +536,17 @@ function applyLanguage(lang) {
     const systemSpan = document.querySelector('#theme-system span');
     if (systemSpan) systemSpan.textContent = translations[lang]['system'];
 
+    // 2.5 Settings Tabs - General & Profile
     const generalTabSpan = document.querySelector('#general-tab-btn span');
     if (generalTabSpan) generalTabSpan.textContent = translations[lang]['general'];
 
     const profileTabSpan = document.querySelector('#profile-tab-btn span');
     if (profileTabSpan) profileTabSpan.textContent = translations[lang]['profile'];
 
+    // 3. Settings - Usage & Plan Table
     const planTable = document.querySelector('.plan-table');
     if (planTable) {
+        // Table Headers
         const headerRow = planTable.querySelector('.flex.justify-between.items-end');
         if (headerRow) {
             headerRow.children[0].textContent = translations[lang]['feature'];
@@ -537,11 +554,12 @@ function applyLanguage(lang) {
             headerRow.children[2].innerHTML = `${translations[lang]['premiumPlanTitle']} <span class="text-sm font-normal">(₹49/month)</span>`;
         }
 
+        // Table Rows
         const rows = planTable.querySelectorAll('.bg-gray-50 > div, .dark\\:bg-gray-800 > div');
         
         if (rows.length >= 5) {
             rows[0].children[0].textContent = translations[lang]['dailyTextMessages'];
-            rows[0].children[1].textContent = `${usageLimits.messages} ${translations[lang]['messages']}`; 
+            rows[0].children[1].textContent = `${usageLimits.messages} ${translations[lang]['messages']}`; // Adjusted to dynamic
             rows[0].children[2].textContent = translations[lang]['unlimited'];
 
             rows[1].children[0].textContent = translations[lang]['voiceCommands'];
@@ -562,11 +580,13 @@ function applyLanguage(lang) {
         }
     }
 
+    // Usage Section Titles and Buttons
     if (planTitle) planTitle.textContent = translations[lang]['freePlanTitle'];
     if (razorpayBtn) razorpayBtn.textContent = translations[lang]['upgradeBtnText'];
 
     updateUsageUI();
 
+    // 4. Settings - Profile Tab Labels
     const profileContent = document.getElementById('profile-settings-content');
     if (profileContent) {
         const emailVerLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > div > p.font-medium');
@@ -578,6 +598,7 @@ function applyLanguage(lang) {
         const deleteAccountLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(5) > p');
         if (deleteAccountLabel) deleteAccountLabel.textContent = translations[lang]['deleteAccountLabel'];
 
+        // Dynamic Status Text for Email
         if (emailVerificationStatusText) {
             if (verifyEmailBtn && verifyEmailBtn.disabled) {
                 emailVerificationStatusText.textContent = translations[lang]['emailVerifiedMsg'];
@@ -587,6 +608,7 @@ function applyLanguage(lang) {
         }
     }
 
+    // 5. Update Verify/Delete buttons
     if (verifyEmailBtn) {
         if (!verifyEmailBtn.disabled) verifyEmailBtn.textContent = translations[lang]['verify'];
         else if (verifyEmailBtn.textContent !== 'Sending...') verifyEmailBtn.textContent = translations[lang]['verified'];
@@ -621,7 +643,7 @@ function applyTheme(theme) {
         document.documentElement.classList.add('dark');
     } else if (theme === 'light') {
         document.documentElement.classList.remove('dark');
-    } else { 
+    } else { // system
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.documentElement.classList.add('dark');
         } else {
@@ -741,6 +763,7 @@ async function sendMessage() {
     
     const typingIndicator = addTypingIndicator();
 
+    // --- MODIFIED SYSTEM PROMPT FOR TEACHER MODE ---
     let textToSend = text;
     if (isEthicalHackingMode) {
         textToSend = `[SYSTEM: You are now an Expert Ethical Hacking Teacher.
@@ -749,6 +772,7 @@ async function sendMessage() {
         - If the user asks for malicious code, refuse and explain *how* to secure against it instead.
         - Use emojis like 🛡️, 💻, 🔐 to make learning engaging.]\n\nUser Question: "${text}"`;
     }
+    // -------------------------------------------------------------
 
     try {
         const response = await fetch('/chat', {
@@ -866,6 +890,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         aiMessageContainer.appendChild(messageBubble);
         chatContainer.appendChild(aiMessageContainer);
 
+        // Code Block Highlight
         const codeBlocks = messageBubble.querySelectorAll('pre');
         codeBlocks.forEach((pre) => {
             const copyButton = document.createElement('button');
@@ -913,13 +938,16 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
 
         const speakBtn = messageBubble.querySelector('.speak-btn');
         speakBtn.addEventListener('click', () => {
+            // Check if ANY speech is active and cancel it first
              if (window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
-                document.querySelectorAll('.speak-btn').forEach(btn => btn.classList.remove('text-green-600'));
+                // Remove active class from all speaker buttons to be safe
+                document.querySelectorAll('.speak-btn').forEach(btn => btn.classList.remove('text-green-600', 'animate-pulse'));
             } else {
-                speakBtn.classList.add('text-green-600');
+                // If not speaking, start this one
+                speakBtn.classList.add('text-green-600', 'animate-pulse');
                 speakText(text, () => {
-                    speakBtn.classList.remove('text-green-600');
+                    speakBtn.classList.remove('text-green-600', 'animate-pulse');
                 });
             }
         });
@@ -961,9 +989,13 @@ function activateWebSearch() {
     const indicator = document.createElement('div');
     indicator.className = 'mode-indicator ml-2';
     indicator.innerHTML = `
-        <svg class="h-4 w-4" ...></svg>
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 48 48"><path fill="#4CAF50" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FFC107" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#FF3D00" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.902,35.636,44,29.598,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
         <span>Web Search Active</span>
-        <button id="close-search-mode-btn" ...></button>
+        <button id="close-search-mode-btn" class="ml-2 p-1 rounded-full hover:bg-indigo-200 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-indigo-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
     `;
     modeIndicatorContainer.innerHTML = '';
     modeIndicatorContainer.appendChild(indicator);
@@ -986,21 +1018,21 @@ webSearchToggleBtn.addEventListener('click', () => {
     }
 });
 
-// --- Voice Functions (ANIMATIONS REMOVED) ---
+// --- Voice Functions ---
 function setVoiceUIState(state) {
     if (state === 'listening') {
         voiceStatusText.textContent = "Listening...";
+        voiceVisualizer.classList.add('listening');
         voiceVisualizer.classList.remove('bg-gray-500');
-        // Removed: voiceVisualizer.classList.add('listening');
-        voiceVisualizer.innerHTML = `<svg ... ></svg>`;
+        voiceVisualizer.innerHTML = `<svg class="h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
     } else if (state === 'thinking') {
         voiceStatusText.textContent = "Thinking...";
-        // Removed: voiceVisualizer.classList.remove('listening');
+        voiceVisualizer.classList.remove('listening');
         voiceVisualizer.classList.add('bg-gray-500');
         voiceVisualizer.innerHTML = `<div class="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>`;
     } else if (state === 'speaking') {
         voiceStatusText.textContent = "Sofia is speaking...";
-        // Removed: voiceVisualizer.classList.remove('listening');
+        voiceVisualizer.classList.remove('listening');
         voiceVisualizer.classList.remove('bg-gray-500');
     }
 }
@@ -1030,12 +1062,14 @@ function speakText(text, onEndCallback) {
 }
 
 function startListening() {
+    // 1. Check browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         alert("Your browser does not support voice input. Please use Google Chrome or Edge.");
         return;
     }
 
+    // 2. Cancel any active speech output
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
@@ -1050,15 +1084,17 @@ function startListening() {
             if (isVoiceConversationActive) {
                 setVoiceUIState('listening');
             } else {
-                micBtn.classList.add('text-red-600'); // Removed 'animate-pulse'
+                // Visual feedback for standard Mic button
+                micBtn.classList.add('text-red-600', 'animate-pulse');
                 messageInput.placeholder = "Listening...";
             }
         };
 
         recognition.onend = () => {
-            micBtn.classList.remove('text-red-600'); // Removed 'animate-pulse'
-            messageInput.placeholder = translations[currentLang]['askAnything'] || "Ask anything"; 
+            micBtn.classList.remove('text-red-600', 'animate-pulse');
+            messageInput.placeholder = translations[currentLang]['askAnything'] || "Ask anything"; // Restore placeholder
             
+            // Handle Voice Conversation Mode Loop
             if (isVoiceConversationActive) {
                  const finalTranscript = voiceInterimTranscript.textContent.trim();
                  if (finalTranscript) {
@@ -1066,6 +1102,7 @@ function startListening() {
                     sendMessage();
                     setVoiceUIState('thinking');
                  } else {
+                    // If silence, listen again
                     try { recognition.start(); } catch(e) {}
                  }
             }
@@ -1083,10 +1120,13 @@ function startListening() {
                 }
             }
 
+            // If not in full voice mode, put text directly into input
             if (!isVoiceConversationActive) {
                 messageInput.value = final_transcript || interim_transcript;
+                // Auto-resize input height
                 messageInput.style.height = 'auto';
                 messageInput.style.height = `${messageInput.scrollHeight}px`;
+                // Show send button
                 sendBtn.classList.remove('hidden');
                 micBtn.classList.add('hidden');
                 voiceModeBtn.classList.add('hidden');
@@ -1097,7 +1137,7 @@ function startListening() {
 
         recognition.onerror = (event) => {
             console.error('Speech recognition error:', event.error);
-            micBtn.classList.remove('text-red-600');
+            micBtn.classList.remove('text-red-600', 'animate-pulse');
             messageInput.placeholder = "Error. Try again.";
             
             if (event.error === 'not-allowed') {
@@ -1171,8 +1211,11 @@ async function saveChatSession() {
             if (!currentChatId) {
                 currentChatId = savedChat.id;
             }
+            // Refresh history from DB to ensure consistency
             loadChatsFromDB();
-        } 
+        } else {
+            console.error('Failed to save chat session to DB');
+        }
     } catch (error) {
         console.error('Error saving chat session:', error);
     }
@@ -1188,7 +1231,7 @@ async function saveTemporaryChatToDB() {
     saveToDbBtn.disabled = true;
 
     try {
-        const response = await fetch('/api/chats', { 
+        const response = await fetch('/api/chats', { // Changed endpoint
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messages: currentChat })
@@ -1199,8 +1242,10 @@ async function saveTemporaryChatToDB() {
         }
 
         const savedChat = await response.json();
+
         isTemporaryChatActive = false;
-        currentChatId = savedChat.id; 
+        
+        currentChatId = savedChat.id; // The server should return the new ID
         chatHistory.unshift({ id: savedChat.id, title: savedChat.title, messages: [...currentChat] });
         renderChatHistorySidebar();
 
@@ -1223,9 +1268,13 @@ async function loadChatsFromDB() {
         if (response.ok) {
             chatHistory = await response.json();
             renderChatHistorySidebar();
-        } 
+        } else {
+            console.error('Failed to load chats from DB');
+            chatHistoryContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Could not load history.</div>`;
+        }
     } catch (error) {
         console.error('Error loading chats:', error);
+        chatHistoryContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Error loading history.</div>`;
     }
 }
 
@@ -1238,6 +1287,7 @@ function renderChatHistorySidebar() {
          return;
     }
 
+    // Sort history by the most recent (assuming IDs are timestamp-based or server sends them sorted)
     const sortedHistory = chatHistory.sort((a, b) => b.id - a.id);
 
     sortedHistory.forEach(chat => {
@@ -1258,10 +1308,10 @@ function renderChatHistorySidebar() {
         
         actionsDiv.innerHTML = `
             <button class="p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600" title="Rename">
-                <svg ... ></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
             </button>
             <button class="p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600" title="Delete">
-                <svg ... ></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
         `;
 
@@ -1290,10 +1340,13 @@ async function renameChat(chatId) {
                 body: JSON.stringify({ title: newTitle.trim() })
             });
             if(response.ok) {
-                loadChatsFromDB(); 
+                loadChatsFromDB(); // Refresh from DB
+            } else {
+                alert('Failed to rename chat.');
             }
         } catch(error) {
             console.error('Error renaming chat:', error);
+            alert('An error occurred while renaming.');
         }
     }
 }
@@ -1306,10 +1359,13 @@ async function deleteChat(chatId) {
                 if (currentChatId === chatId) {
                     startNewChat();
                 }
-                loadChatsFromDB(); 
+                loadChatsFromDB(); // Refresh from DB
+            } else {
+                alert('Failed to delete chat.');
             }
         } catch(error) {
              console.error('Error deleting chat:', error);
+             alert('An error occurred while deleting.');
         }
     }
 }
@@ -1364,6 +1420,7 @@ function startNewChat() {
     messageInput.value = '';
     renderChatHistorySidebar();
     
+    // Trigger typewriter animation on the welcome message
     const welcomeH1 = welcomeMessageContainer.querySelector('h1');
     if (welcomeH1) {
         welcomeH1.id = 'welcome-text-animated';
@@ -1383,6 +1440,7 @@ function dataURLtoBlob(dataurl) {
 }
 
 async function uploadFileToLibrary(fileInfo) {
+    console.log("Auto-saving file to library:", fileInfo.name);
     try {
         const blob = dataURLtoBlob(fileInfo.dataUrl);
         const formData = new FormData();
@@ -1393,7 +1451,11 @@ async function uploadFileToLibrary(fileInfo) {
             body: formData
         });
 
-        if (response.ok && !libraryModal.classList.contains('hidden')) {
+        if (!response.ok) {
+            throw new Error('Auto-save to library failed');
+        }
+        console.log(`Successfully auto-saved ${fileInfo.name} to library.`);
+        if (!libraryModal.classList.contains('hidden')) {
             fetchLibraryFiles();
         }
     } catch(error) {
@@ -1424,6 +1486,7 @@ async function fetchLibraryFiles() {
         const files = await response.json();
         renderLibraryFiles(files);
     } catch (error) {
+        console.error('Error fetching library files:', error);
         libraryGrid.innerHTML = '<p class="text-red-500">Could not load library. Please try again.</p>';
     }
 }
@@ -1440,20 +1503,24 @@ function renderLibraryFiles(files) {
 
     files.forEach(file => {
         const item = document.createElement('div');
-        item.className = 'relative group ...';
+        item.className = 'relative group border rounded-lg p-2 flex flex-col items-center text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700';
         item.addEventListener('click', () => selectLibraryFile(file));
 
         let previewHtml = '';
         if (file.fileCategory === 'image') {
-            previewHtml = `<img src="data:${file.fileType};base64,${file.fileData}" ...>`;
+            previewHtml = `<img src="data:${file.fileType};base64,${file.fileData}" alt="${file.fileName}" class="w-20 h-20 object-cover rounded-md mb-2">`;
+        } else if (file.fileCategory === 'document') {
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
+        } else if (file.fileCategory === 'code') {
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l-4 4-4-4M6 16l-4-4 4-4" /></svg>`;
         } else {
-            previewHtml = `<svg ... ></svg>`;
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         }
         
         item.innerHTML = `
             ${previewHtml}
             <p class="text-xs break-all w-full">${file.fileName}</p>
-            <button class="absolute top-1 right-1 ...">&times;</button>
+            <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100">&times;</button>
         `;
         
         item.querySelector('button').addEventListener('click', (e) => {
@@ -1467,11 +1534,16 @@ function renderLibraryFiles(files) {
 
 async function deleteLibraryFile(fileId) {
     if (!confirm("Are you sure you want to delete this file from your library?")) return;
+    
     try {
          const response = await fetch(`/library/files/${fileId}`, { method: 'DELETE' });
-         if (response.ok) fetchLibraryFiles();
+         if (!response.ok) {
+             throw new Error('Deletion failed');
+         }
+         fetchLibraryFiles();
     } catch (error) {
         console.error('Error deleting library file:', error);
+        alert('Could not delete file.');
     }
 }
 
@@ -1517,24 +1589,32 @@ function updateUsageUI() {
         sidebarUsageDisplay.classList.remove('hidden');
         
         const percentage = Math.min((usageCounts.messages / usageLimits.messages) * 100, 100);
+        
         const usedWord = translations[currentLang]['used'] || 'Used';
         const msgsUsedWord = translations[currentLang]['msgsUsedMonth'] || 'messages used this month';
         
         sidebarUsageDisplay.textContent = `${usageCounts.messages} / ${usageLimits.messages} ${usedWord}`;
         usageCounter.textContent = `${usageCounts.messages} / ${usageLimits.messages} ${msgsUsedWord}`;
+        
         usageProgressBar.style.width = `${percentage}%`;
     }
 }
 
 razorpayBtn.addEventListener('click', () => {
      const options = {
-        "key": "rzp_test_YourKeyHere", 
-        "amount": "4900", 
+        "key": "rzp_test_YourKeyHere", // IMPORTANT: Replace with your Razorpay Test Key ID
+        "amount": "4900", // UPDATED AMOUNT (49 INR)
         "currency": "INR",
         "name": "Sofia AI",
         "description": "Premium Plan - Monthly",
+        "image": "https://placehold.co/100x100/3b82f6/FFFFFF?text=S",
+        // "order_id": "order_xyz", // IMPORTANT: This should be generated from your backend for security
         "handler": function (response){
             alert("Payment Successful! Payment ID: " + response.razorpay_payment_id);
+            // TODO: You should now send response.razorpay_payment_id to your backend
+            // to verify the payment signature and update the user's status in your database.
+            
+            // For this demo, we'll just upgrade the user on the frontend
             isPremium = true;
             updateUsageUI();
             closeSettingsModal();
@@ -1542,9 +1622,15 @@ razorpayBtn.addEventListener('click', () => {
         "prefill": {
             "name": document.getElementById('profile-name').textContent,
             "email": document.getElementById('profile-email').textContent,
+        },
+        "theme": {
+            "color": "#3b82f6"
         }
     };
     const rzp1 = new Razorpay(options);
+    rzp1.on('payment.failed', function (response){
+            alert("Payment Failed. Error: " + response.error.description);
+    });
     rzp1.open();
 });
 
@@ -1561,7 +1647,9 @@ async function fetchAndDisplayUserInfo() {
        
         isAdmin = userData.isAdmin || false;
         isPremium = userData.isPremium || false;
+
         usageCounts = userData.usageCounts || { messages: 0, webSearches: 0 };
+        
         updateUsageUI();
 
         let userInitial = 'U';
@@ -1584,20 +1672,44 @@ async function fetchAndDisplayUserInfo() {
             avatarImg.src = `https://placehold.co/32x32/E2E8F0/4A5568?text=${userInitial}`;
         }
 
+
         if(userData.email) {
              document.getElementById('profile-email').textContent = userData.email;
              if (userData.emailVerified) {
                  emailVerificationStatusText.textContent = 'Your email has been verified.';
+                 emailVerificationStatusText.classList.remove('text-yellow-600', 'text-gray-500');
+                 emailVerificationStatusText.classList.add('text-green-600');
                  verifyEmailBtn.textContent = 'Verified';
                  verifyEmailBtn.disabled = true;
+                 verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+                 verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
              } else {
                  emailVerificationStatusText.textContent = 'Your email is not verified.';
+                 emailVerificationStatusText.classList.remove('text-green-600', 'text-gray-500');
+                 emailVerificationStatusText.classList.add('text-yellow-600');
                  verifyEmailBtn.textContent = 'Verify';
                  verifyEmailBtn.disabled = false;
+                 verifyEmailBtn.classList.remove('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+                 verifyEmailBtn.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-700');
              }
+        } else {
+             document.getElementById('profile-email').textContent = 'N/A';
+             emailVerificationStatusText.textContent = 'Add an email to enable verification.';
+             verifyEmailBtn.textContent = 'Verify';
+             verifyEmailBtn.disabled = true;
+             verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+             verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
         }
+
     } catch (error) {
         console.error('Failed to fetch user info:', error);
+        document.getElementById('profile-name').textContent = 'Error loading user';
+        document.getElementById('profile-email').textContent = 'Please refresh';
+        document.getElementById('sidebar-username').textContent = 'Error';
+        const avatarImg = document.getElementById('sidebar-user-avatar');
+        if (avatarImg) {
+            avatarImg.src = `https://placehold.co/32x32/E2E8F0/4A5568?text=!`;
+        }
     }
 }
 
@@ -1609,8 +1721,10 @@ function initializeApp() {
     populateLanguages();
     applyLanguage(currentLang);
     loadChatsFromDB();
+    
     fetchAndDisplayUserInfo();
     
+    // Trigger typewriter animation on initial load
     const welcomeH1 = document.querySelector('#welcome-message-container h1');
     if (welcomeH1) {
         welcomeH1.id = 'welcome-text-animated';
@@ -1621,20 +1735,33 @@ function initializeApp() {
     const handleLogout = async () => {
         try {
             const response = await fetch('/logout', { method: 'POST' });
-            if(response.ok) window.location.href = '/login.html';
+            if(response.ok) {
+                alert('You have been logged out.');
+                window.location.href = '/login.html';
+            } else {
+                alert('Logout failed. Please try again.');
+            }
         } catch (error) {
             console.error('Logout error:', error);
+            alert('An error occurred during logout.');
         }
     };
 
     const handleLogoutAll = async () => {
-        if (confirm('This will log you out from all other devices and this one. Are you sure?')) {
-            try {
-                const response = await fetch('/logout-all', { method: 'POST' });
-                if(response.ok) window.location.href = '/login.html';
-            } catch (error) {
-                console.error('Logout all error:', error);
+        if (!confirm('This will log you out from all other devices and this one. Are you sure?')) {
+            return;
+        }
+        try {
+            const response = await fetch('/logout-all', { method: 'POST' });
+            if(response.ok) {
+                alert('Successfully logged out of all devices.');
+                window.location.href = '/login.html';
+            } else {
+                alert('Failed to log out of all devices. Please try again.');
             }
+        } catch (error) {
+            console.error('Logout all error:', error);
+            alert('An error occurred while logging out of all devices.');
         }
     };
     
@@ -1652,30 +1779,46 @@ function initializeApp() {
             if (response.ok) {
                 alert('A new verification email has been sent to your address.');
                 verifyEmailBtn.textContent = 'Resend';
+            } else {
+                const errorData = await response.json().catch(() => ({error: 'Server error'}));
+                alert(`Failed to send email: ${errorData.error}`);
+                verifyEmailBtn.textContent = 'Verify';
             }
+        } catch (error) {
+            console.error('Send verification email error:', error);
+            alert('An error occurred while sending the verification email. This is a demo feature.');
+            verifyEmailBtn.textContent = 'Verify';
         } finally {
             verifyEmailBtn.disabled = false;
         }
     });
 
     deleteAccountBtn.addEventListener('click', async () => {
-        if(confirm('Are you sure? This action is permanent.')) {
+        if(confirm('Are you sure you want to delete your account? This action is permanent and cannot be undone.')) {
              try {
                 const response = await fetch('/delete_account', { method: 'DELETE' });
-                if(response.ok) window.location.href = '/login.html';
+                if(response.ok) {
+                    alert('Your account has been successfully deleted.');
+                    window.location.href = '/login.html';
+                } else {
+                     const errorData = await response.json().catch(() => ({error: 'Server error'}));
+                     alert(`Failed to delete account: ${errorData.error}`);
+                }
             } catch (error) {
                  console.error('Delete account error:', error);
+                 alert('An error occurred while deleting your account.');
             }
         }
     });
 }
 
+// --- Animation Helper: Typewriter Effect ---
 function typeWriterEffect(elementId, text, speed = 40) {
     const element = document.getElementById(elementId);
     if (!element) return;
     
-    element.innerHTML = ''; 
-    element.classList.add('typing-cursor'); 
+    element.innerHTML = ''; // Clear text
+    element.classList.add('typing-cursor'); // Add blinking cursor
     
     let i = 0;
     function type() {
@@ -1683,7 +1826,9 @@ function typeWriterEffect(elementId, text, speed = 40) {
             element.innerHTML += text.charAt(i);
             i++;
             setTimeout(type, speed);
-        } 
+        } else {
+             // Animation done
+        }
     }
     type();
 }
