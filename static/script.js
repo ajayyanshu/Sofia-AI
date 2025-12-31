@@ -1834,3 +1834,4 @@ function typeWriterEffect(elementId, text, speed = 40) {
 }
 
 initializeApp();
+
