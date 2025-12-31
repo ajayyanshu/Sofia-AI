@@ -374,7 +374,6 @@ const translations = {
         premiumPlanTitle: 'Sofia AI Pro',
         upgradeBtnText: 'Upgrade for ₹49/month', // UPDATED PRICE
         used: 'Used'
-        contactUs: 'Contact Us
     },
     'hi': { 
         settings: 'सेटिंग्स', 
@@ -430,7 +429,6 @@ const translations = {
         premiumPlanTitle: 'सोफिया एआई प्रो',
         upgradeBtnText: '₹49/माह में अपग्रेड करें', // UPDATED PRICE
         used: 'उपयोग किया गया'
-        contactUs: 'हमसे संपर्क करें'
     },
     'bn': { 
         settings: 'সেটিংস', 
@@ -486,7 +484,6 @@ const translations = {
         premiumPlanTitle: 'সোফিয়া এআই প্রো',
         upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', // UPDATED PRICE
         used: 'ব্যবহৃত'
-        contactUs: 'আমাদের সাথে যোগাযোগ করুন'
     }
 };
 
@@ -1837,4 +1834,3 @@ function typeWriterEffect(elementId, text, speed = 40) {
 }
 
 initializeApp();
-
