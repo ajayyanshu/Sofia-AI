@@ -1232,6 +1232,10 @@ async function saveTemporaryChatToDB() {
 }
 
 async function loadChatsFromDB() {
+    // 1. SHOW LOADER
+    const loader = document.getElementById('loading-overlay');
+    if (loader) loader.style.display = 'flex';
+
     try {
         const response = await fetch('/api/chats');
         if (response.ok) {
@@ -1244,6 +1248,13 @@ async function loadChatsFromDB() {
     } catch (error) {
         console.error('Error loading chats:', error);
         chatHistoryContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Error loading history.</div>`;
+    } finally {
+        // 2. HIDE LOADER
+        if (loader) {
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 1500);
+        }
     }
 }
 
