@@ -385,3 +385,52 @@ header .text-indigo-600 {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
+
+
+/* --- Loading Overlay Styles (ADDED FOR UPDATE) --- */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* Dark background */
+    z-index: 9999; /* On top of everything */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    backdrop-filter: blur(5px);
+}
+
+.loader-content {
+    text-align: center;
+    color: white;
+}
+
+.loader-content p {
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    animation: pulseText 2s infinite;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 5px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    border-top-color: #4f46e5; /* Indigo-600 to match theme */
+    animation: spin 1s ease-in-out infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseText {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
