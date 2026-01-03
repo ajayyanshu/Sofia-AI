@@ -1161,6 +1161,22 @@ endVoiceBtn.addEventListener('click', endVoiceConversation);
 
 
 // --- Chat History Functions ---
+
+// Function to render skeleton loader in sidebar
+function showChatHistoryLoading() {
+    chatHistoryContainer.innerHTML = '';
+    // Create 5 skeleton items to simulate loading list
+    for (let i = 0; i < 5; i++) {
+        const item = document.createElement('div');
+        item.className = 'history-skeleton-item';
+        item.innerHTML = `
+            <div class="skeleton-line title"></div>
+            <div class="skeleton-line subtitle"></div>
+        `;
+        chatHistoryContainer.appendChild(item);
+    }
+}
+
 async function saveChatSession() {
     if (isTemporaryChatActive || currentChat.length === 0) {
         return;
@@ -1232,14 +1248,14 @@ async function saveTemporaryChatToDB() {
 }
 
 async function loadChatsFromDB() {
-    // 1. SHOW LOADER
-    const loader = document.getElementById('loading-overlay');
-    if (loader) loader.style.display = 'flex';
+    // 1. Show Sidebar Skeleton Loader (Better UX than full screen block)
+    showChatHistoryLoading();
 
     try {
         const response = await fetch('/api/chats');
         if (response.ok) {
             chatHistory = await response.json();
+            // 2. Render actual history (replaces skeleton)
             renderChatHistorySidebar();
         } else {
             console.error('Failed to load chats from DB');
@@ -1248,13 +1264,6 @@ async function loadChatsFromDB() {
     } catch (error) {
         console.error('Error loading chats:', error);
         chatHistoryContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Error loading history.</div>`;
-    } finally {
-        // 2. HIDE LOADER
-        if (loader) {
-            setTimeout(() => {
-                loader.style.display = 'none';
-            }, 1500);
-        }
     }
 }
 
