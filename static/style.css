@@ -387,7 +387,7 @@ header .text-indigo-600 {
 }
 
 
-/* --- Loading Overlay Styles (ADDED FOR UPDATE) --- */
+/* --- Loading Overlay Styles (Keep in case you revert) --- */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -433,4 +433,38 @@ header .text-indigo-600 {
 @keyframes pulseText {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+
+
+/* --- Chat History Skeleton Loader (New Feature) --- */
+.history-skeleton-item {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.03);
+    animation: skeleton-pulse 1.5s infinite ease-in-out;
+}
+
+.dark .history-skeleton-item {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.skeleton-line {
+    height: 10px;
+    background-color: #cbd5e1; /* Light gray */
+    border-radius: 4px;
+    margin-bottom: 6px;
+}
+
+.dark .skeleton-line {
+    background-color: #4b5563; /* Dark gray */
+}
+
+.skeleton-line.title { width: 70%; height: 12px; }
+.skeleton-line.subtitle { width: 40%; }
+
+@keyframes skeleton-pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.5; }
 }
