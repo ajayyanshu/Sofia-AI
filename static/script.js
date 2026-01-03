@@ -1492,20 +1492,30 @@ function renderLibraryFiles(files) {
         item.addEventListener('click', () => selectLibraryFile(file));
 
         let previewHtml = '';
-        if (file.fileCategory === 'image') {
+        
+        // --- UPDATED LOGIC HERE ---
+        // Check fileType directly since 'fileCategory' is not sent by backend
+        if (file.fileType.startsWith('image/')) {
+            // It's an image: Show the actual image thumbnail
             previewHtml = `<img src="data:${file.fileType};base64,${file.fileData}" alt="${file.fileName}" class="w-20 h-20 object-cover rounded-md mb-2">`;
-        } else if (file.fileCategory === 'document') {
+        } else if (file.fileType.includes('pdf')) {
+            // It's a PDF: Show PDF icon
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
+        } else if (file.fileType.includes('word') || file.fileType.includes('document')) {
+             // It's a Document: Show Blue Doc icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
-        } else if (file.fileCategory === 'code') {
+        } else if (file.fileType.includes('text/') || file.fileName.endsWith('.py') || file.fileName.endsWith('.js') || file.fileName.endsWith('.html')) {
+             // It's Code/Text: Show Green Code icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l-4 4-4-4M6 16l-4-4 4-4" /></svg>`;
         } else {
+            // Default Generic File Icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         }
         
         item.innerHTML = `
             ${previewHtml}
-            <p class="text-xs break-all w-full">${file.fileName}</p>
-            <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100">&times;</button>
+            <p class="text-xs break-all w-full line-clamp-2">${file.fileName}</p>
+            <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity" title="Delete file">&times;</button>
         `;
         
         item.querySelector('button').addEventListener('click', (e) => {
