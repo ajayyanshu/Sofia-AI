@@ -468,3 +468,27 @@ header .text-indigo-600 {
     50% { opacity: 0.8; }
     100% { opacity: 0.5; }
 }
+
+/* --- Fix for Cyber Training Modal Visibility --- */
+
+/* 1. Force the modal to be on top of everything */
+#cyber-modal {
+    z-index: 100 !important; 
+}
+
+/* 2. Make the background slightly darker for better text readability */
+#cyber-modal.bg-black\/50 {
+    background-color: rgba(0, 0, 0, 0.75) !important;
+}
+
+/* 3. Ensure the inner content box pops out clearly */
+#cyber-modal > div {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 4. Improve text spacing inside the modal */
+#cyber-modal p {
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
