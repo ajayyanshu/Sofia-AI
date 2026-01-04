@@ -61,8 +61,6 @@ const themeBtns = document.querySelectorAll('.theme-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const deleteAccountBtn = document.getElementById('delete-account-btn');
 const logoutMenuItem = document.getElementById('logout-menu-item');
-const emailVerificationStatusText = document.getElementById('email-verification-status-text');
-const verifyEmailBtn = document.getElementById('verify-email-btn');
 
 // Library Modal
 const libraryBtn = document.getElementById('library-btn');
@@ -575,28 +573,13 @@ function applyLanguage(lang) {
 
     const profileContent = document.getElementById('profile-settings-content');
     if (profileContent) {
-        const emailVerLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > div > p.font-medium');
-        if (emailVerLabel) emailVerLabel.textContent = translations[lang]['emailVerification'];
-
-        const logoutLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(4) > p');
+        const logoutLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > p');
         if (logoutLabel) logoutLabel.textContent = translations[lang]['logoutAllDevices'];
 
-        const deleteAccountLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(5) > p');
+        const deleteAccountLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(4) > p');
         if (deleteAccountLabel) deleteAccountLabel.textContent = translations[lang]['deleteAccountLabel'];
-
-        if (emailVerificationStatusText) {
-            if (verifyEmailBtn && verifyEmailBtn.disabled) {
-                emailVerificationStatusText.textContent = translations[lang]['emailVerifiedMsg'];
-            } else {
-                emailVerificationStatusText.textContent = translations[lang]['emailNotVerifiedMsg'];
-            }
-        }
     }
 
-    if (verifyEmailBtn) {
-        if (!verifyEmailBtn.disabled) verifyEmailBtn.textContent = translations[lang]['verify'];
-        else if (verifyEmailBtn.textContent !== 'Sending...') verifyEmailBtn.textContent = translations[lang]['verified'];
-    }
     if (deleteAccountBtn) deleteAccountBtn.textContent = translations[lang]['delete'];
     if (logoutBtn) logoutBtn.textContent = translations[lang]['logOut'];
 
@@ -1665,30 +1648,8 @@ async function fetchAndDisplayUserInfo() {
 
         if(userData.email) {
              document.getElementById('profile-email').textContent = userData.email;
-             if (userData.emailVerified) {
-                 emailVerificationStatusText.textContent = 'Your email has been verified.';
-                 emailVerificationStatusText.classList.remove('text-yellow-600', 'text-gray-500');
-                 emailVerificationStatusText.classList.add('text-green-600');
-                 verifyEmailBtn.textContent = 'Verified';
-                 verifyEmailBtn.disabled = true;
-                 verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
-                 verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
-             } else {
-                 emailVerificationStatusText.textContent = 'Your email is not verified.';
-                 emailVerificationStatusText.classList.remove('text-green-600', 'text-gray-500');
-                 emailVerificationStatusText.classList.add('text-yellow-600');
-                 verifyEmailBtn.textContent = 'Verify';
-                 verifyEmailBtn.disabled = false;
-                 verifyEmailBtn.classList.remove('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
-                 verifyEmailBtn.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-700');
-             }
         } else {
              document.getElementById('profile-email').textContent = 'N/A';
-             emailVerificationStatusText.textContent = 'Add an email to enable verification.';
-             verifyEmailBtn.textContent = 'Verify';
-             verifyEmailBtn.disabled = true;
-             verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
-             verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
         }
 
     } catch (error) {
@@ -1761,28 +1722,6 @@ function initializeApp() {
         handleLogout();
     });
     
-    verifyEmailBtn.addEventListener('click', async () => {
-        verifyEmailBtn.disabled = true;
-        verifyEmailBtn.textContent = 'Sending...';
-        try {
-            const response = await fetch('/send_verification_email', { method: 'POST' });
-            if (response.ok) {
-                alert('A new verification email has been sent to your address.');
-                verifyEmailBtn.textContent = 'Resend';
-            } else {
-                const errorData = await response.json().catch(() => ({error: 'Server error'}));
-                alert(`Failed to send email: ${errorData.error}`);
-                verifyEmailBtn.textContent = 'Verify';
-            }
-        } catch (error) {
-            console.error('Send verification email error:', error);
-            alert('An error occurred while sending the verification email. This is a demo feature.');
-            verifyEmailBtn.textContent = 'Verify';
-        } finally {
-            verifyEmailBtn.disabled = false;
-        }
-    });
-
     deleteAccountBtn.addEventListener('click', async () => {
         if(confirm('Are you sure you want to delete your account? This action is permanent and cannot be undone.')) {
              try {
