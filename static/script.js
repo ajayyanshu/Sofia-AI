@@ -298,7 +298,7 @@ function updateHackingModeUI() {
         hackingModeStatusText.textContent = "Disable Teacher Mode";
         
         const headerTitle = document.querySelector('header span');
-        if (headerTitle) headerTitle.innerHTML = 'Sofia AI <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-2">Ethical Hacker</span>';
+        if (headerTitle) headerTitle.innerHTML = 'Sofia AI <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-2">Cyber Training</span>';
         
     } else {
         toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
