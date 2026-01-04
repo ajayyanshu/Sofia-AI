@@ -40,7 +40,7 @@ const hackingModeStatusText = document.getElementById('hacking-mode-status-text'
 const cyberGameControls = document.getElementById('cyber-game-controls');
 
 // Contact Us Elements
-const contactBtn = document.getElementById('contact-btn');
+// REMOVED: const contactBtn = document.getElementById('contact-btn'); 
 const contactMenuItem = document.getElementById('contact-menu-item');
 const contactModal = document.getElementById('contact-modal');
 const closeContactModalBtn = document.getElementById('close-contact-modal');
@@ -248,7 +248,7 @@ function openContactModal() {
     contactModal.classList.add('flex');
 }
 
-contactBtn.addEventListener('click', openContactModal);
+// REMOVED: contactBtn.addEventListener('click', openContactModal);
 if (contactMenuItem) contactMenuItem.addEventListener('click', openContactModal);
 
 closeContactModalBtn.addEventListener('click', () => {
