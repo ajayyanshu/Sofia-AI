@@ -95,17 +95,33 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 
 .mode-indicator { display: inline-flex; align-items: center; gap: 0.5rem; background-color: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; }
 
+/* --- Voice Mode Animations (UPDATED) --- */
 #voice-overlay {
     background-color: #000000c0;
     backdrop-filter: blur(8px);
 }
+#voice-visualizer {
+    transition: all 0.3s ease;
+}
 #voice-visualizer.listening {
     animation: pulse-mic 1.5s infinite ease-in-out;
 }
+#voice-visualizer.speaking {
+    animation: pulse-speak 1.2s infinite ease-in-out;
+}
+
+/* Red Pulse for Listening */
 @keyframes pulse-mic { 
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); } 
-    70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); } 
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); } 
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 
+    70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
+}
+
+/* Blue Pulse for Speaking */
+@keyframes pulse-speak { 
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 
+    50% { transform: scale(1.15); box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } 
 }
 
 .message-actions { position: absolute; bottom: 0.5rem; right: 0.75rem; display: flex; gap: 0.5rem; opacity: 0.7; }
