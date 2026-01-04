@@ -302,8 +302,9 @@ pre[class*="language-"] {
     border: 6px solid;
 }
 
-.score-high { border-color: #22c55e; color: #15803d; background: #f0fdf4; }
-.score-med { border-color: #eab308; color: #a16207; background: #fefce8; }
+/* Improved contrast for Light Green & Yellow options */
+.score-high { border-color: #22c55e; color: #14532d; background: #f0fdf4; } /* Darker green text for clarity */
+.score-med { border-color: #eab308; color: #713f12; background: #fefce8; } /* Darker yellow text for clarity */
 .score-low { border-color: #ef4444; color: #b91c1c; background: #fef2f2; }
 
 /* Dark mode support for report card */
