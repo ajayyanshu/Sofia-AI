@@ -22,10 +22,6 @@ from bson.objectid import ObjectId
 from youtube_transcript_api import YouTubeTranscriptApi
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
-from dotenv import load_dotenv  # <--- ADDED IMPORT
-
-# Load environment variables from .env file
-load_dotenv()  # <--- ADDED LOADING COMMAND
 
 # Note: We removed Flask-Mail imports as we are now using Brevo API directly via requests
 
@@ -293,44 +289,6 @@ def api_verify_otp():
 
     return jsonify({'success': True, 'message': 'Account verified successfully!'})
 
-# --- ADDED ROUTE TO FIX SETTINGS PAGE VERIFICATION ---
-@app.route('/send_verification_email', methods=['POST'])
-@login_required
-def send_verification_email():
-    if users_collection is None:
-        return jsonify({'error': 'Database not configured'}), 500
-    
-    # 1. Generate a new OTP
-    otp_code = str(random.randint(100000, 999999))
-    
-    # 2. Save it to the current user's database entry
-    try:
-        users_collection.update_one(
-            {"_id": ObjectId(current_user.id)},
-            {"$set": {"verification_token": otp_code}}
-        )
-    except Exception as e:
-        return jsonify({'error': 'Database error'}), 500
-
-    # 3. Create Email Content
-    html_content = f"""
-    <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="text-align: center; color: #333;">Verify Your Email</h2>
-        <p style="font-size: 16px; color: #555;">Please use the following code to verify your email address:</p>
-        <div style="text-align: center; margin: 30px 0;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #FF4B2B; background: #f9f9f9; padding: 10px 20px; border-radius: 5px; border: 1px dashed #FF4B2B;">
-                {otp_code}
-            </span>
-        </div>
-        <p style="font-size: 14px; color: #888; text-align: center;">This code will expire shortly.</p>
-    </div>
-    """
-    
-    # 4. Send the Email
-    Thread(target=send_async_brevo_email, args=(app, current_user.email, "Verification Code - Sofia AI", html_content)).start()
-    
-    return jsonify({'success': True, 'message': 'Verification email sent.'})
-# -----------------------------------------------------
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
