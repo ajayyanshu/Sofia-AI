@@ -61,6 +61,8 @@ const themeBtns = document.querySelectorAll('.theme-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const deleteAccountBtn = document.getElementById('delete-account-btn');
 const logoutMenuItem = document.getElementById('logout-menu-item');
+const emailVerificationStatusText = document.getElementById('email-verification-status-text');
+const verifyEmailBtn = document.getElementById('verify-email-btn');
 
 // Library Modal
 const libraryBtn = document.getElementById('library-btn');
@@ -573,13 +575,28 @@ function applyLanguage(lang) {
 
     const profileContent = document.getElementById('profile-settings-content');
     if (profileContent) {
-        const logoutLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > p');
+        const emailVerLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(3) > div > p.font-medium');
+        if (emailVerLabel) emailVerLabel.textContent = translations[lang]['emailVerification'];
+
+        const logoutLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(4) > p');
         if (logoutLabel) logoutLabel.textContent = translations[lang]['logoutAllDevices'];
 
-        const deleteAccountLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(4) > p');
+        const deleteAccountLabel = profileContent.querySelector('div.space-y-6 > div:nth-child(5) > p');
         if (deleteAccountLabel) deleteAccountLabel.textContent = translations[lang]['deleteAccountLabel'];
+
+        if (emailVerificationStatusText) {
+            if (verifyEmailBtn && verifyEmailBtn.disabled) {
+                emailVerificationStatusText.textContent = translations[lang]['emailVerifiedMsg'];
+            } else {
+                emailVerificationStatusText.textContent = translations[lang]['emailNotVerifiedMsg'];
+            }
+        }
     }
 
+    if (verifyEmailBtn) {
+        if (!verifyEmailBtn.disabled) verifyEmailBtn.textContent = translations[lang]['verify'];
+        else if (verifyEmailBtn.textContent !== 'Sending...') verifyEmailBtn.textContent = translations[lang]['verified'];
+    }
     if (deleteAccountBtn) deleteAccountBtn.textContent = translations[lang]['delete'];
     if (logoutBtn) logoutBtn.textContent = translations[lang]['logOut'];
 
@@ -979,45 +996,101 @@ webSearchToggleBtn.addEventListener('click', () => {
     }
 });
 
-// --- Voice Functions ---
+// --- Advanced Voice Functions ---
+let availableVoices = [];
+
+// 1. Pre-load voices to avoid empty lists in Chrome
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+    // Chrome loads voices asynchronously
+    if (availableVoices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+            availableVoices = window.speechSynthesis.getVoices();
+            console.log("Voices loaded:", availableVoices.length);
+        };
+    }
+}
+loadVoices();
+
+// 2. Select the best available voice for the language
+function getPreferredVoice(lang) {
+    if (availableVoices.length === 0) loadVoices();
+    
+    // Filter voices by the requested language (e.g., 'en', 'hi', 'bn')
+    const langVoices = availableVoices.filter(v => v.lang.startsWith(lang.split('-')[0]));
+    
+    // Priority 1: Google voices (usually highest quality in Chrome)
+    let bestVoice = langVoices.find(v => v.name.includes('Google'));
+    
+    // Priority 2: Voices marked "Natural" (Edge/newer browsers)
+    if (!bestVoice) bestVoice = langVoices.find(v => v.name.includes('Natural'));
+    
+    // Fallback: The first voice matching the language, or the default
+    return bestVoice || langVoices[0] || null;
+}
+
 function setVoiceUIState(state) {
+    // Reset classes
+    voiceVisualizer.className = "w-24 h-24 rounded-full flex items-center justify-center transition-all duration-200 ease-in-out";
+    
     if (state === 'listening') {
         voiceStatusText.textContent = "Listening...";
-        voiceVisualizer.classList.add('listening');
-        voiceVisualizer.classList.remove('bg-gray-500');
-        voiceVisualizer.innerHTML = `<svg class="h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+        voiceVisualizer.classList.add('listening', 'bg-red-500');
+        voiceVisualizer.innerHTML = `<svg class="h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
     } else if (state === 'thinking') {
         voiceStatusText.textContent = "Thinking...";
-        voiceVisualizer.classList.remove('listening');
         voiceVisualizer.classList.add('bg-gray-500');
         voiceVisualizer.innerHTML = `<div class="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>`;
     } else if (state === 'speaking') {
         voiceStatusText.textContent = "Sofia is speaking...";
-        voiceVisualizer.classList.remove('listening');
-        voiceVisualizer.classList.remove('bg-gray-500');
+        voiceVisualizer.classList.add('speaking', 'bg-blue-500');
+        voiceVisualizer.innerHTML = `<svg class="h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 2.485.554 4.815 1.551 6.905.344 1.241 1.517 1.905 2.66 1.905h1.933l4.5 4.5c.944.945 2.56.276 2.56-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 2.75 2.75 0 010-11.668.75.75 0 010-1.06z"/></svg>`;
     }
 }
 
 function speakText(text, onEndCallback) {
     if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech
         window.speechSynthesis.cancel();
-        const cleanedText = text.replace(/[*_`#]/g, '');
+        
+        // Sanitize text: remove markdown symbols that sound weird
+        const cleanedText = text.replace(/[*#`_]/g, '');
+        
         const utterance = new SpeechSynthesisUtterance(cleanedText);
         utterance.lang = currentLang;
+        
+        // Apply Enhanced Voice
+        const voice = getPreferredVoice(currentLang);
+        if (voice) {
+            utterance.voice = voice;
+            console.log(`Using voice: ${voice.name} (${voice.lang})`);
+        }
+
+        // Tweak Pitch/Rate for personality
+        utterance.pitch = 1.05; // Slightly higher pitch for friendliness
+        utterance.rate = 1.0;   // Normal speed
+
         utterance.onstart = () => {
             if (isVoiceConversationActive) setVoiceUIState('speaking');
         };
-        utterance.onend = () => { if(onEndCallback) onEndCallback(); };
-        utterance.onerror = (event) => {
-            console.error('SpeechSynthesisUtterance.onerror', event);
-             if (isVoiceConversationActive) {
-                addMessage({ text: 'Sorry, I had trouble speaking. Please try again.', sender: 'system' });
+
+        utterance.onend = () => {
+            // Small delay before listening again to avoid echo
+            if (isVoiceConversationActive && onEndCallback) {
+                setTimeout(onEndCallback, 500); 
+            } else if (onEndCallback) {
+                onEndCallback();
             }
-            if(onEndCallback) onEndCallback();
         };
+
+        utterance.onerror = (event) => {
+            console.error('TTS Error:', event);
+            if (isVoiceConversationActive && onEndCallback) onEndCallback();
+        };
+
         window.speechSynthesis.speak(utterance);
     } else {
-         addMessage({ text: 'Sorry, my voice response is not available on your browser.', sender: 'system' });
+        addMessage({ text: 'Voice output is not supported in this browser.', sender: 'system' });
         if (onEndCallback) onEndCallback();
     }
 }
@@ -1025,17 +1098,18 @@ function speakText(text, onEndCallback) {
 function startListening() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        alert("Your browser does not support voice input. Please use Google Chrome or Edge.");
+        alert("Your browser does not support voice input. Please use Google Chrome.");
         return;
     }
 
+    // Ensure TTS is stopped before listening
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
 
     try {
         recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = false; // We want turn-based
         recognition.interimResults = true;
         recognition.lang = currentLang;
 
@@ -1053,13 +1127,21 @@ function startListening() {
             messageInput.placeholder = translations[currentLang]['askAnything'] || "Ask anything"; 
             
             if (isVoiceConversationActive) {
+                 // Check if we got any input
                  const finalTranscript = voiceInterimTranscript.textContent.trim();
-                 if (finalTranscript) {
+                 
+                 if (finalTranscript.length > 0) {
+                    // We have input -> Send it
                     messageInput.value = finalTranscript;
-                    sendMessage();
+                    sendMessage(); // This triggers AI response -> then speakText
                     setVoiceUIState('thinking');
                  } else {
-                    try { recognition.start(); } catch(e) {}
+                    // Silence detected -> Restart listening loop smoothly
+                    // (Unless user manually stopped it)
+                    if (isVoiceConversationActive) {
+                        console.log("Silence detected, restarting listener...");
+                        try { recognition.start(); } catch(e) { console.log("Restart ignore", e); }
+                    }
                  }
             }
         };
@@ -1076,27 +1158,29 @@ function startListening() {
                 }
             }
 
-            if (!isVoiceConversationActive) {
+            if (isVoiceConversationActive) {
+                voiceInterimTranscript.textContent = final_transcript || interim_transcript;
+            } else {
+                // Mic button mode
                 messageInput.value = final_transcript || interim_transcript;
                 messageInput.style.height = 'auto';
                 messageInput.style.height = `${messageInput.scrollHeight}px`;
                 sendBtn.classList.remove('hidden');
                 micBtn.classList.add('hidden');
                 voiceModeBtn.classList.add('hidden');
-            } else {
-                voiceInterimTranscript.textContent = final_transcript || interim_transcript;
             }
         };
 
         recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            micBtn.classList.remove('text-red-600', 'animate-pulse');
-            messageInput.placeholder = "Error. Try again.";
+            console.warn('Speech recognition error:', event.error);
+            
+            if (event.error === 'no-speech') {
+                // Ignore no-speech errors in conversation mode, just restart
+                 return; 
+            }
             
             if (event.error === 'not-allowed') {
-                alert("Microphone access blocked. Please allow microphone permissions in your browser settings.");
-            }
-            if (isVoiceConversationActive) {
+                alert("Microphone access blocked.");
                 endVoiceConversation();
             }
         };
@@ -1105,7 +1189,6 @@ function startListening() {
 
     } catch (e) {
         console.error("Recognition start error", e);
-        alert("Could not start microphone. Please check permissions.");
     }
 }
 
@@ -1648,8 +1731,30 @@ async function fetchAndDisplayUserInfo() {
 
         if(userData.email) {
              document.getElementById('profile-email').textContent = userData.email;
+             if (userData.emailVerified) {
+                 emailVerificationStatusText.textContent = 'Your email has been verified.';
+                 emailVerificationStatusText.classList.remove('text-yellow-600', 'text-gray-500');
+                 emailVerificationStatusText.classList.add('text-green-600');
+                 verifyEmailBtn.textContent = 'Verified';
+                 verifyEmailBtn.disabled = true;
+                 verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+                 verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
+             } else {
+                 emailVerificationStatusText.textContent = 'Your email is not verified.';
+                 emailVerificationStatusText.classList.remove('text-green-600', 'text-gray-500');
+                 emailVerificationStatusText.classList.add('text-yellow-600');
+                 verifyEmailBtn.textContent = 'Verify';
+                 verifyEmailBtn.disabled = false;
+                 verifyEmailBtn.classList.remove('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+                 verifyEmailBtn.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-700');
+             }
         } else {
              document.getElementById('profile-email').textContent = 'N/A';
+             emailVerificationStatusText.textContent = 'Add an email to enable verification.';
+             verifyEmailBtn.textContent = 'Verify';
+             verifyEmailBtn.disabled = true;
+             verifyEmailBtn.classList.add('bg-gray-200', 'cursor-not-allowed', 'dark:bg-gray-600', 'dark:text-gray-400');
+             verifyEmailBtn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
         }
 
     } catch (error) {
@@ -1722,6 +1827,28 @@ function initializeApp() {
         handleLogout();
     });
     
+    verifyEmailBtn.addEventListener('click', async () => {
+        verifyEmailBtn.disabled = true;
+        verifyEmailBtn.textContent = 'Sending...';
+        try {
+            const response = await fetch('/send_verification_email', { method: 'POST' });
+            if (response.ok) {
+                alert('A new verification email has been sent to your address.');
+                verifyEmailBtn.textContent = 'Resend';
+            } else {
+                const errorData = await response.json().catch(() => ({error: 'Server error'}));
+                alert(`Failed to send email: ${errorData.error}`);
+                verifyEmailBtn.textContent = 'Verify';
+            }
+        } catch (error) {
+            console.error('Send verification email error:', error);
+            alert('An error occurred while sending the verification email. This is a demo feature.');
+            verifyEmailBtn.textContent = 'Verify';
+        } finally {
+            verifyEmailBtn.disabled = false;
+        }
+    });
+
     deleteAccountBtn.addEventListener('click', async () => {
         if(confirm('Are you sure you want to delete your account? This action is permanent and cannot be undone.')) {
              try {
