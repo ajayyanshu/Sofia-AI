@@ -19,6 +19,26 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" defer></script>
+    <style>
+        /* Custom styles for the shortcut circles */
+        .shortcut-item {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .shortcut-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
 </head>
 <body class="h-full flex initial-view relative">
 
@@ -244,7 +264,7 @@
                 <span data-lang="newChat">New chat</span>
             </button>
             <button id="library-btn" class="sidebar-item w-full text-left">
-                <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2v-5m-9 4h4" /></svg>
                 <span data-lang="library">Library</span>
             </button>
             
@@ -329,6 +349,12 @@
             
             <div id="welcome-message-container" class="flex-1 flex flex-col items-center justify-center p-4 text-center">
                 <h1 class="text-4xl font-bold text-gray-800" data-lang="welcome">What can I help with?</h1>
+                
+                <div id="shortcuts-container" class="mt-8 flex flex-wrap justify-center gap-4">
+                    <button id="add-shortcut-btn" class="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-2xl text-gray-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                </div>
             </div>
             <div id="chat-container" class="flex-1 flex-col overflow-y-auto w-full px-4 sm:px-6 hidden"></div>
         </main>
@@ -361,10 +387,6 @@
                     
                     <textarea id="message-input" rows="1" placeholder="Ask anything" class="flex-1 min-w-0 px-2 sm:px-4 py-2 bg-transparent focus:outline-none text-gray-700" aria-label="Ask AI Chatbot" data-lang-placeholder="askAnything"></textarea>
                     
-                    <button id="web-search-toggle-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
-                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 48 48"><path fill="#4CAF50" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FFC107" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#FF3D00" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.902,35.636,44,29.598,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
-                    </button>
-
                     <button id="mic-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     </button>
@@ -417,6 +439,91 @@
         </div>
     </div>
 
+    <div id="add-shortcut-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-white">Add Shortcut</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input type="text" id="shortcut-name-input" placeholder="e.g. Google" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                <input type="url" id="shortcut-url-input" placeholder="https://example.com" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            
+            <div class="flex justify-end gap-3">
+                <button id="cancel-shortcut-btn" class="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
+                <button id="save-shortcut-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Done</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/script.js" defer></script>
+    <script>
+        // Inline script to handle shortcut functionality (can be moved to script.js)
+        document.addEventListener('DOMContentLoaded', () => {
+            const addShortcutBtn = document.getElementById('add-shortcut-btn');
+            const shortcutModal = document.getElementById('add-shortcut-modal');
+            const cancelShortcutBtn = document.getElementById('cancel-shortcut-btn');
+            const saveShortcutBtn = document.getElementById('save-shortcut-btn');
+            const shortcutsContainer = document.getElementById('shortcuts-container');
+            const nameInput = document.getElementById('shortcut-name-input');
+            const urlInput = document.getElementById('shortcut-url-input');
+
+            // Open Modal
+            if(addShortcutBtn) {
+                addShortcutBtn.addEventListener('click', () => {
+                    shortcutModal.classList.remove('hidden');
+                    shortcutModal.classList.add('flex');
+                    nameInput.focus();
+                });
+            }
+
+            // Close Modal
+            const closeShortcutModal = () => {
+                shortcutModal.classList.add('hidden');
+                shortcutModal.classList.remove('flex');
+                nameInput.value = '';
+                urlInput.value = '';
+            };
+
+            if(cancelShortcutBtn) cancelShortcutBtn.addEventListener('click', closeShortcutModal);
+            
+            // Close on click outside
+            if(shortcutModal) {
+                shortcutModal.addEventListener('click', (e) => {
+                    if (e.target === shortcutModal) closeShortcutModal();
+                });
+            }
+
+            // Save Shortcut
+            if(saveShortcutBtn) {
+                saveShortcutBtn.addEventListener('click', () => {
+                    const name = nameInput.value.trim();
+                    let url = urlInput.value.trim();
+
+                    if (name && url) {
+                        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                            url = 'https://' + url;
+                        }
+                        
+                        // Create Shortcut Element
+                        const newShortcut = document.createElement('a');
+                        newShortcut.href = url;
+                        newShortcut.target = "_blank"; // Open in new tab
+                        newShortcut.className = 'shortcut-item bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+                        newShortcut.innerText = name.charAt(0).toUpperCase();
+                        newShortcut.title = name;
+
+                        // Insert before the add button
+                        shortcutsContainer.insertBefore(newShortcut, addShortcutBtn);
+                        closeShortcutModal();
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
