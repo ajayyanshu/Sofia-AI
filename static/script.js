@@ -1,198 +1,211 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- DOM Elements ---
+    const menuBtn = document.getElementById('menu-btn');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const chatContainer = document.getElementById('chat-container');
+    
+    // Modals
+    const settingsModal = document.getElementById('settings-modal');
+    const closeSettingsBtn = document.getElementById('close-settings-btn');
+    const closeSettingsBtnDesktop = document.getElementById('close-settings-btn-desktop');
+    const settingsMenuItem = document.getElementById('settings-menu-item');
 
-/* --- Global Settings --- */
-body {
-    font-family: 'Inter', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-}
+    const contactModal = document.getElementById('contact-modal');
+    const contactMenuItem = document.getElementById('contact-menu-item');
+    const closeContactModal = document.getElementById('close-contact-modal');
 
-/* --- Scrollbar Styling --- */
-/* For Webkit browsers (Chrome, Safari) */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
+    // Voice
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+    const voiceOverlay = document.getElementById('voice-overlay');
+    const endVoiceBtn = document.getElementById('end-voice-btn');
 
-::-webkit-scrollbar-track {
-    background: transparent;
-}
+    // --- NEW: Shortcuts Functionality ---
+    const addShortcutBtn = document.getElementById('add-shortcut-btn');
+    const shortcutModal = document.getElementById('add-shortcut-modal');
+    const cancelShortcutBtn = document.getElementById('cancel-shortcut-btn');
+    const saveShortcutBtn = document.getElementById('save-shortcut-btn');
+    const shortcutsContainer = document.getElementById('shortcuts-container');
+    const nameInput = document.getElementById('shortcut-name-input');
+    const urlInput = document.getElementById('shortcut-url-input');
 
-::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1; /* gray-300 */
-    border-radius: 4px;
-}
+    // 1. Open Shortcut Modal
+    if (addShortcutBtn) {
+        addShortcutBtn.addEventListener('click', () => {
+            shortcutModal.classList.remove('hidden');
+            shortcutModal.classList.add('flex');
+            nameInput.focus();
+        });
+    }
 
-.dark ::-webkit-scrollbar-thumb {
-    background-color: #475569; /* gray-600 */
-}
+    // 2. Close Shortcut Modal
+    function closeShortcutModal() {
+        if (shortcutModal) {
+            shortcutModal.classList.add('hidden');
+            shortcutModal.classList.remove('flex');
+            // Clear inputs
+            nameInput.value = '';
+            urlInput.value = '';
+        }
+    }
 
-::-webkit-scrollbar-thumb:hover {
-    background-color: #94a3b8; /* gray-400 */
-}
+    if (cancelShortcutBtn) {
+        cancelShortcutBtn.addEventListener('click', closeShortcutModal);
+    }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-    background-color: #64748b; /* gray-500 */
-}
+    // Close if clicking outside the modal content
+    if (shortcutModal) {
+        shortcutModal.addEventListener('click', (e) => {
+            if (e.target === shortcutModal) {
+                closeShortcutModal();
+            }
+        });
+    }
 
-/* --- Loading Overlay & Spinner --- */
-#loading-overlay {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(255, 255, 255, 0.9);
-    z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(5px);
-}
+    // 3. Save New Shortcut
+    if (saveShortcutBtn) {
+        saveShortcutBtn.addEventListener('click', () => {
+            const name = nameInput.value.trim();
+            let url = urlInput.value.trim();
 
-.dark #loading-overlay {
-    background-color: rgba(17, 24, 39, 0.9);
-    color: white;
-}
+            if (name && url) {
+                // Ensure URL has protocol
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = 'https://' + url;
+                }
 
-.loader-content {
-    text-align: center;
-}
+                // Create the new shortcut element (Anchor tag)
+                const newShortcut = document.createElement('a');
+                newShortcut.href = url;
+                newShortcut.target = "_blank";
+                newShortcut.rel = "noopener noreferrer"; // Security best practice
+                // Apply the same classes as the styled container items
+                newShortcut.className = 'shortcut-item bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+                newShortcut.innerText = name.charAt(0).toUpperCase(); // Use first letter as icon
+                newShortcut.title = name; // Tooltip
 
-.spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid #e2e8f0;
-    border-top: 5px solid #4f46e5; /* indigo-600 */
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 20px auto;
-}
+                // Insert the new shortcut BEFORE the "+" button
+                shortcutsContainer.insertBefore(newShortcut, addShortcutBtn);
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+                closeShortcutModal();
+            }
+        });
+    }
 
-/* --- New Shortcut Icons (Added Feature) --- */
-.shortcut-item {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    font-weight: 600;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: transform 0.2s, box-shadow 0.2s;
-    /* Default colors handled by Tailwind classes in HTML, 
-       but we add base styles here to be safe */
-    position: relative;
-}
 
-.shortcut-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
+    // --- Sidebar Logic ---
+    function toggleSidebar() {
+        const isClosed = sidebar.classList.contains('-translate-x-full');
+        if (isClosed) {
+            sidebar.classList.remove('-translate-x-full');
+            sidebarOverlay.classList.remove('hidden');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            sidebarOverlay.classList.add('hidden');
+        }
+    }
 
-/* --- Voice Mode Visualizer --- */
-.listening-bar {
-    width: 4px;
-    background-color: #6366f1; /* indigo-500 */
-    border-radius: 2px;
-    animation: bounce 1s infinite ease-in-out;
-}
+    if (menuBtn) menuBtn.addEventListener('click', toggleSidebar);
+    if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
 
-.listening-bar:nth-child(1) { animation-delay: 0s; }
-.listening-bar:nth-child(2) { animation-delay: 0.2s; height: 16px; }
-.listening-bar:nth-child(3) { animation-delay: 0.4s; }
 
-@keyframes bounce {
-    0%, 100% { height: 8px; }
-    50% { height: 20px; }
-}
+    // --- Settings Modal Logic ---
+    function openSettings() {
+        settingsModal.classList.remove('hidden');
+        settingsModal.classList.add('flex');
+        if (window.innerWidth < 640) toggleSidebar(); // Close sidebar on mobile
+    }
 
-/* --- Markdown Content Styling --- */
-/* This ensures the bot's responses are styled correctly */
-.prose {
-    max-width: none;
-    color: #374151; /* gray-700 */
-}
+    function closeSettings() {
+        settingsModal.classList.add('hidden');
+        settingsModal.classList.remove('flex');
+    }
 
-.dark .prose {
-    color: #d1d5db; /* gray-300 */
-}
+    if (settingsMenuItem) settingsMenuItem.addEventListener('click', openSettings);
+    if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', closeSettings);
+    if (closeSettingsBtnDesktop) closeSettingsBtnDesktop.addEventListener('click', closeSettings);
 
-.prose p {
-    margin-bottom: 1em;
-    line-height: 1.6;
-}
 
-.prose h1, .prose h2, .prose h3 {
-    color: #111827; /* gray-900 */
-    font-weight: 600;
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-}
+    // --- Contact Modal Logic ---
+    function openContact() {
+        contactModal.classList.remove('hidden');
+        contactModal.classList.add('flex');
+        if (window.innerWidth < 640) toggleSidebar();
+    }
 
-.dark .prose h1, .dark .prose h2, .dark .prose h3 {
-    color: #f3f4f6; /* gray-100 */
-}
+    function closeContact() {
+        contactModal.classList.add('hidden');
+        contactModal.classList.remove('flex');
+    }
 
-.prose ul {
-    list-style-type: disc;
-    padding-left: 1.5em;
-    margin-bottom: 1em;
-}
+    if (contactMenuItem) contactMenuItem.addEventListener('click', openContact);
+    if (closeContactModal) closeContactModal.addEventListener('click', closeContact);
 
-.prose ol {
-    list-style-type: decimal;
-    padding-left: 1.5em;
-    margin-bottom: 1em;
-}
 
-.prose pre {
-    background-color: #1e293b; /* slate-800 */
-    color: #e2e8f0;
-    padding: 1em;
-    border-radius: 0.5em;
-    overflow-x: auto;
-    margin-bottom: 1em;
-}
+    // --- Voice Mode Logic ---
+    if (voiceModeBtn) {
+        voiceModeBtn.addEventListener('click', () => {
+            voiceOverlay.classList.remove('hidden');
+            voiceOverlay.classList.add('flex');
+            // Logic to start voice recognition would go here
+        });
+    }
 
-.prose code {
-    background-color: #f3f4f6; /* gray-100 */
-    padding: 0.2em 0.4em;
-    border-radius: 0.25em;
-    font-size: 0.875em;
-    font-family: monospace;
-}
+    if (endVoiceBtn) {
+        endVoiceBtn.addEventListener('click', () => {
+            voiceOverlay.classList.add('hidden');
+            voiceOverlay.classList.remove('flex');
+            // Logic to stop voice recognition would go here
+        });
+    }
 
-.dark .prose code {
-    background-color: #374151; /* gray-700 */
-    color: #e5e7eb;
-}
 
-.prose pre code {
-    background-color: transparent;
-    padding: 0;
-    color: inherit;
-}
+    // --- Chat Input Logic ---
+    // Auto-resize textarea
+    if (messageInput) {
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            
+            // Toggle send button visibility based on input
+            if (this.value.trim().length > 0) {
+                sendBtn.classList.remove('hidden');
+            } else {
+                sendBtn.classList.add('hidden');
+            }
+        });
 
-.prose a {
-    color: #4f46e5; /* indigo-600 */
-    text-decoration: underline;
-}
+        // Handle Enter key to send
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (this.value.trim().length > 0) {
+                    // Trigger send button click
+                    sendBtn.click();
+                }
+            }
+        });
+    }
+    
+    // --- File Upload Menus ---
+    const addBtn = document.getElementById('add-btn');
+    const addMenu = document.getElementById('add-menu');
+    
+    if (addBtn && addMenu) {
+        addBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            addMenu.classList.toggle('hidden');
+        });
+        
+        // Close menu when clicking elsewhere
+        document.addEventListener('click', (e) => {
+            if (!addBtn.contains(e.target) && !addMenu.contains(e.target)) {
+                addMenu.classList.add('hidden');
+            }
+        });
+    }
 
-.dark .prose a {
-    color: #818cf8; /* indigo-400 */
-}
-
-/* --- Utilities --- */
-.hidden {
-    display: none !important;
-}
-
-/* Add specific override for dark mode modals if needed */
-.dark .modal-box {
-    background-color: #1f2937;
-    border-color: #374151;
-}
+});
