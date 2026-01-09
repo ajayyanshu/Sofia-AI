@@ -37,17 +37,11 @@ const cyberModal = document.getElementById('cyber-modal');
 const closeCyberModalBtn = document.getElementById('close-cyber-modal');
 const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
 const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
+const cyberGameControls = document.getElementById('cyber-game-controls');
 
 // Web Vulnerability Scanner Elements (NEW)
 const scanUrlBtn = document.getElementById('scan-url-btn');
 const webScannerSidebarBtn = document.getElementById('web-scanner-sidebar-btn');
-
-// GitHub Import Modal Elements (NEW - matching image_1eb504.png)
-const importCodeModal = document.getElementById('import-code-modal');
-const closeImportModal = document.getElementById('close-import-modal');
-const githubImportBtn = document.getElementById('github-import-btn');
-const githubUrlInput = document.getElementById('github-url-input');
-const uploadFolderTrigger = document.getElementById('upload-folder-trigger');
 
 // Contact Us Elements
 const contactMenuItem = document.getElementById('contact-menu-item');
@@ -162,11 +156,9 @@ uploadFileBtn.addEventListener('click', () => {
     fileInput.click();
 });
 
-// Update uploadCodeBtn to open Modal instead of file input (matches image_1eb504.png)
 uploadCodeBtn.addEventListener('click', () => {
-    addMenu.classList.add('hidden');
-    importCodeModal.classList.remove('hidden');
-    importCodeModal.classList.add('flex');
+    fileInput.accept = ".txt,.py,.js,.java,.c,.cpp,.h,.html,.css,.json,.md,.sh,.rb,.go,.php,.swift,.kt";
+    fileInput.click();
 });
 
 fileInput.addEventListener('change', handleFileSelect);
@@ -204,102 +196,6 @@ messageInput.addEventListener('input', () => {
 });
 
 saveToDbBtn.addEventListener('click', saveTemporaryChatToDB);
-
-// --- Import Code Modal Logic (Matches image_1eb504.png) ---
-closeImportModal.addEventListener('click', () => {
-    importCodeModal.classList.add('hidden');
-    importCodeModal.classList.remove('flex');
-});
-
-githubImportBtn.addEventListener('click', () => {
-    const url = githubUrlInput.value.trim();
-    if (url.includes('github.com')) {
-        const repoPath = url.split('github.com/')[1];
-        
-        importCodeModal.classList.add('hidden');
-        importCodeModal.classList.remove('flex');
-
-        if (document.body.classList.contains('initial-view')) {
-            document.body.classList.remove('initial-view');
-            welcomeMessageContainer.classList.add('hidden');
-            chatContainer.classList.remove('hidden');
-        }
-
-        // Generate the Repository Card (matches image_1eb481.png style)
-        const repoCardHtml = `
-            <div class="github-repo-card">
-                <div class="repo-name">${repoPath}</div>
-                <div class="repo-meta">
-                    <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.1 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path></svg>
-                    GitHub
-                </div>
-            </div>
-        `;
-
-        addMessage({ 
-            text: repoCardHtml + `<br>Successfully imported the repository. How would you like me to assist with this code?`, 
-            sender: 'user' 
-        });
-
-        sendMessage(`[SYSTEM: User has imported the GitHub repository at ${url}. Analyze the repo structure and wait for user questions.]`);
-        githubUrlInput.value = '';
-    } else {
-        alert("Please enter a valid GitHub URL.");
-    }
-});
-
-uploadFolderTrigger.addEventListener('click', () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.webkitdirectory = true;
-    input.click();
-    input.onchange = (e) => {
-        const files = e.target.files;
-        addMessage({ text: `Imported local folder with ${files.length} files.`, sender: 'user' });
-        importCodeModal.classList.add('hidden');
-    };
-});
-
-// --- Web Scanner Logic (NEW) ---
-function triggerWebScan() {
-    const url = prompt("Enter the target URL for vulnerability scanning (e.g., http://example.com):");
-    
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-        if (document.body.classList.contains('initial-view')) {
-            document.body.classList.remove('initial-view');
-            welcomeMessageContainer.classList.add('hidden');
-            chatContainer.classList.remove('hidden');
-        }
-
-        addMessage({ 
-            text: `Scan initiated for: **${url}**`, 
-            sender: 'user', 
-            mode: 'web_search' 
-        });
-
-        const scanPrompt = `[SYSTEM: Act as a Web Vulnerability Scanner. 
-        Analyze the provided URL: ${url}. 
-        1. Perform a simulated scan for: SQLi, XSS, CSRF, and Open Redirects.
-        2. Provide a 'Cyber Security Report Card' in the response.
-        3. Explain each vulnerability found and provide remediation (fix) steps.
-        4. Disclaimer: This is an educational simulation.]\n\nUser Link: ${url}`;
-
-        messageInput.value = `Please scan this URL for vulnerabilities: ${url}`;
-        sendMessage(scanPrompt); 
-    } else if (url) {
-        alert("Please enter a valid URL starting with http:// or https://");
-    }
-}
-
-if (scanUrlBtn) scanUrlBtn.addEventListener('click', () => {
-    addMenu.classList.add('hidden');
-    triggerWebScan();
-});
-
-if (webScannerSidebarBtn) webScannerSidebarBtn.addEventListener('click', () => {
-    closeSidebar();
-    triggerWebScan();
-});
 
 // --- Settings Modal Logic ---
 function openSettingsModal() { settingsModal.classList.remove('hidden'); settingsModal.classList.add('flex'); }
@@ -414,6 +310,47 @@ function updateHackingModeUI() {
     }
 }
 
+// --- Web Vulnerability Scanner Logic (NEW) ---
+function triggerWebScan() {
+    const url = prompt("Enter the target URL for vulnerability scanning (e.g., http://example.com):");
+    
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        if (document.body.classList.contains('initial-view')) {
+            document.body.classList.remove('initial-view');
+            welcomeMessageContainer.classList.add('hidden');
+            chatContainer.classList.remove('hidden');
+        }
+
+        addMessage({ 
+            text: `Scan initiated for: **${url}**`, 
+            sender: 'user', 
+            mode: 'web_search' 
+        });
+
+        const scanPrompt = `[SYSTEM: Act as a Web Vulnerability Scanner. 
+        Analyze the provided URL: ${url}. 
+        1. Perform a simulated scan for: SQLi, XSS, CSRF, and Open Redirects.
+        2. Provide a 'Cyber Security Report Card' in the response.
+        3. Explain each vulnerability found and provide remediation (fix) steps.
+        4. Disclaimer: This is an educational simulation.]\n\nUser Link: ${url}`;
+
+        messageInput.value = `Scan this URL for vulnerabilities: ${url}`;
+        sendMessage(scanPrompt); 
+    } else if (url) {
+        alert("Please enter a valid URL starting with http:// or https://");
+    }
+}
+
+scanUrlBtn.addEventListener('click', () => {
+    addMenu.classList.add('hidden');
+    triggerWebScan();
+});
+
+webScannerSidebarBtn.addEventListener('click', () => {
+    closeSidebar();
+    triggerWebScan();
+});
+
 
 // --- Language and Theme Logic ---
 let currentLang = 'en';
@@ -442,6 +379,7 @@ const translations = {
         usagePlan: 'Usage & Plan',
         upgradePlan: 'Upgrade your plan',
         cyberTraining: 'Cyber Training',
+        webScanner: 'Web Scanner', // NEW
         upgrade: 'Upgrade',
         verify: 'Verify',
         verified: 'Verified',
@@ -497,6 +435,7 @@ const translations = {
         usagePlan: 'उपयोग और योजना',
         upgradePlan: 'अपना प्लान अपग्रेड करें',
         cyberTraining: 'साइबर प्रशिक्षण',
+        webScanner: 'वेब स्कैनर', // NEW
         upgrade: 'अपग्रेड करें',
         verify: 'सत्यापित करें',
         verified: 'सत्यापित',
@@ -552,6 +491,7 @@ const translations = {
         usagePlan: 'ব্যবহার এবং পরিকল্পনা',
         upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
         cyberTraining: 'সাইবার প্রশিক্ষণ',
+        webScanner: 'ওয়েব স্ক্যানার', // NEW
         upgrade: 'আপগ্রেড করুন',
         verify: 'যাচাই করুন',
         verified: 'যাচাইকৃত',
@@ -616,6 +556,9 @@ function applyLanguage(lang) {
 
     const cyberTrainingSpan = document.querySelector('#cyber-training-btn span');
     if (cyberTrainingSpan) cyberTrainingSpan.textContent = translations[lang]['cyberTraining'];
+
+    const webScannerSidebarSpan = document.querySelector('#web-scanner-sidebar-btn span');
+    if (webScannerSidebarSpan) webScannerSidebarSpan.textContent = translations[lang]['webScanner'];
     
     const themeLabel = document.querySelector('#general-settings-content label');
     if (themeLabel) themeLabel.textContent = translations[lang]['themeLabel'];
@@ -769,7 +712,7 @@ function showFilePreview(file) {
          previewItem.innerHTML = `<img src="${fileInfoForDisplay.dataUrl}" alt="${file.name}"><button class="remove-preview-btn" onclick="removeFile()">&times;</button>`;
     } else {
          previewItem.classList.add('doc-preview');
-         previewItem.innerHTML = `<div class="file-icon"><svg class="h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg></div><span class=\"file-name\">${file.name}</span><button class=\"remove-preview-btn\" onclick=\"removeFile()\">&times;</button>`;
+         previewItem.innerHTML = `<div class="file-icon"><svg class="h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div><span class="file-name">${file.name}</span><button class="remove-preview-btn" onclick="removeFile()">&times;</button>`;
     }
     filePreviewContainer.appendChild(previewItem);
 }
@@ -1834,69 +1777,6 @@ function initializeApp() {
             }
         }
     });
-
-    // --- GitHub Import Modal Event Listeners (Matching image_1eb504.png) ---
-    if (importCodeModal) {
-        const githubImportBtn = document.getElementById('github-import-btn');
-        const githubUrlInput = document.getElementById('github-url-input');
-        const closeImportModal = document.getElementById('close-import-modal');
-        const uploadFolderTrigger = document.getElementById('upload-folder-trigger');
-
-        if (githubImportBtn) {
-            githubImportBtn.addEventListener('click', () => {
-                const url = githubUrlInput.value.trim();
-                if (url.includes('github.com')) {
-                    const repoPath = url.split('github.com/')[1];
-                    importCodeModal.classList.add('hidden');
-                    importCodeModal.classList.remove('flex');
-
-                    if (document.body.classList.contains('initial-view')) {
-                        document.body.classList.remove('initial-view');
-                        welcomeMessageContainer.classList.add('hidden');
-                        chatContainer.classList.remove('hidden');
-                    }
-
-                    // Card matches image_1eb481.png style
-                    const repoCardHtml = `
-                        <div class="github-repo-card">
-                            <div class="repo-name">${repoPath}</div>
-                            <div class="repo-meta">
-                                <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.1 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path></svg>
-                                GitHub
-                            </div>
-                        </div>
-                    `;
-
-                    addMessage({ text: repoCardHtml + `<br>Successfully imported the repository. How should we start analyzing the code?`, sender: 'user' });
-                    sendMessage(`[SYSTEM: User imported GitHub repo: ${url}. Analyze the structure and wait for input.]`);
-                    githubUrlInput.value = '';
-                } else {
-                    alert("Please enter a valid GitHub URL.");
-                }
-            });
-        }
-
-        if (closeImportModal) {
-            closeImportModal.addEventListener('click', () => {
-                importCodeModal.classList.add('hidden');
-                importCodeModal.classList.remove('flex');
-            });
-        }
-
-        if (uploadFolderTrigger) {
-            uploadFolderTrigger.addEventListener('click', () => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.webkitdirectory = true;
-                input.click();
-                input.onchange = (e) => {
-                    const files = e.target.files;
-                    addMessage({ text: `Imported local folder with ${files.length} files.`, sender: 'user' });
-                    importCodeModal.classList.add('hidden');
-                };
-            });
-        }
-    }
 }
 
 function typeWriterEffect(elementId, text, speed = 40) {
