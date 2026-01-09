@@ -39,8 +39,11 @@ const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
 const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
 const cyberGameControls = document.getElementById('cyber-game-controls');
 
+// Web Vulnerability Scanner Elements (NEW)
+const scanUrlBtn = document.getElementById('scan-url-btn');
+const webScannerSidebarBtn = document.getElementById('web-scanner-sidebar-btn');
+
 // Contact Us Elements
-// REMOVED: const contactBtn = document.getElementById('contact-btn'); 
 const contactMenuItem = document.getElementById('contact-menu-item');
 const contactModal = document.getElementById('contact-modal');
 const closeContactModalBtn = document.getElementById('close-contact-modal');
@@ -246,7 +249,6 @@ function openContactModal() {
     contactModal.classList.add('flex');
 }
 
-// REMOVED: contactBtn.addEventListener('click', openContactModal);
 if (contactMenuItem) contactMenuItem.addEventListener('click', openContactModal);
 
 closeContactModalBtn.addEventListener('click', () => {
@@ -308,6 +310,47 @@ function updateHackingModeUI() {
     }
 }
 
+// --- Web Vulnerability Scanner Logic (NEW) ---
+function triggerWebScan() {
+    const url = prompt("Enter the target URL for vulnerability scanning (e.g., http://example.com):");
+    
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        if (document.body.classList.contains('initial-view')) {
+            document.body.classList.remove('initial-view');
+            welcomeMessageContainer.classList.add('hidden');
+            chatContainer.classList.remove('hidden');
+        }
+
+        addMessage({ 
+            text: `Scan initiated for: **${url}**`, 
+            sender: 'user', 
+            mode: 'web_search' 
+        });
+
+        const scanPrompt = `[SYSTEM: Act as a Web Vulnerability Scanner. 
+        Analyze the provided URL: ${url}. 
+        1. Perform a simulated scan for: SQLi, XSS, CSRF, and Open Redirects.
+        2. Provide a 'Cyber Security Report Card' in the response.
+        3. Explain each vulnerability found and provide remediation (fix) steps.
+        4. Disclaimer: This is an educational simulation.]\n\nUser Link: ${url}`;
+
+        messageInput.value = `Scan this URL for vulnerabilities: ${url}`;
+        sendMessage(scanPrompt); 
+    } else if (url) {
+        alert("Please enter a valid URL starting with http:// or https://");
+    }
+}
+
+scanUrlBtn.addEventListener('click', () => {
+    addMenu.classList.add('hidden');
+    triggerWebScan();
+});
+
+webScannerSidebarBtn.addEventListener('click', () => {
+    closeSidebar();
+    triggerWebScan();
+});
+
 
 // --- Language and Theme Logic ---
 let currentLang = 'en';
@@ -336,6 +379,7 @@ const translations = {
         usagePlan: 'Usage & Plan',
         upgradePlan: 'Upgrade your plan',
         cyberTraining: 'Cyber Training',
+        webScanner: 'Web Scanner', // NEW
         upgrade: 'Upgrade',
         verify: 'Verify',
         verified: 'Verified',
@@ -362,7 +406,6 @@ const translations = {
         premiumPlanTitle: 'Sofia AI Pro',
         upgradeBtnText: 'Upgrade for ₹49/month', 
         used: 'Used',
-        // --- Added for Contact Us ---
         contactUs: 'Contact Us',
         email: 'Email',
         telegram: 'Telegram',
@@ -372,7 +415,7 @@ const translations = {
         settings: 'सेटिंग्स', 
         general: 'सामान्य', 
         profile: 'प्रोफ़ाइल', 
-        theme: 'थीম', 
+        theme: 'थीम', 
         light: 'लाइट', 
         dark: 'डार्क', 
         system: 'सिस्टम', 
@@ -392,6 +435,7 @@ const translations = {
         usagePlan: 'उपयोग और योजना',
         upgradePlan: 'अपना प्लान अपग्रेड करें',
         cyberTraining: 'साइबर प्रशिक्षण',
+        webScanner: 'वेब स्कैनर', // NEW
         upgrade: 'अपग्रेड करें',
         verify: 'सत्यापित करें',
         verified: 'सत्यापित',
@@ -418,7 +462,6 @@ const translations = {
         premiumPlanTitle: 'सोफिया एआई प्रो',
         upgradeBtnText: '₹49/माह में अपग्रेड करें', 
         used: 'उपयोग किया गया',
-        // --- Added for Contact Us ---
         contactUs: 'हमसे संपर्क करें',
         email: 'ईमेल',
         telegram: 'टेलीग्राम',
@@ -448,6 +491,7 @@ const translations = {
         usagePlan: 'ব্যবহার এবং পরিকল্পনা',
         upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
         cyberTraining: 'সাইবার প্রশিক্ষণ',
+        webScanner: 'ওয়েব স্ক্যানার', // NEW
         upgrade: 'আপগ্রেড করুন',
         verify: 'যাচাই করুন',
         verified: 'যাচাইকৃত',
@@ -474,7 +518,6 @@ const translations = {
         premiumPlanTitle: 'সোফিয়া এআই প্রো',
         upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', 
         used: 'ব্যবহৃত',
-        // --- Added for Contact Us ---
         contactUs: 'আমাদের সাথে যোগাযোগ করুন',
         email: 'ইমেল',
         telegram: 'টেলিগ্রাম',
@@ -513,6 +556,9 @@ function applyLanguage(lang) {
 
     const cyberTrainingSpan = document.querySelector('#cyber-training-btn span');
     if (cyberTrainingSpan) cyberTrainingSpan.textContent = translations[lang]['cyberTraining'];
+
+    const webScannerSidebarSpan = document.querySelector('#web-scanner-sidebar-btn span');
+    if (webScannerSidebarSpan) webScannerSidebarSpan.textContent = translations[lang]['webScanner'];
     
     const themeLabel = document.querySelector('#general-settings-content label');
     if (themeLabel) themeLabel.textContent = translations[lang]['themeLabel'];
@@ -684,8 +730,8 @@ window.removeFile = function() {
     }
 }
 
-async function sendMessage() {
-    const text = messageInput.value.trim();
+async function sendMessage(overrideText = null) {
+    const text = overrideText || messageInput.value.trim();
     if (!text && !fileData) return;
     
     if (!isPremium && !isAdmin && usageCounts.messages >= usageLimits.messages) {
@@ -703,13 +749,16 @@ async function sendMessage() {
     }
     
     const userMessage = {
-        text,
+        text: overrideText ? messageInput.value.trim() : text,
         sender: 'user',
         fileInfo: fileInfoForDisplay,
         mode: currentMode
     };
-    addMessage(userMessage);
-    currentChat.push(userMessage);
+
+    if (!overrideText) {
+        addMessage(userMessage);
+        currentChat.push(userMessage);
+    }
 
     messageInput.value = '';
     messageInput.dispatchEvent(new Event('input'));
@@ -731,7 +780,7 @@ async function sendMessage() {
     const typingIndicator = addTypingIndicator();
 
     let textToSend = text;
-    if (isEthicalHackingMode) {
+    if (isEthicalHackingMode && !overrideText) {
         textToSend = `[SYSTEM: You are now an Expert Ethical Hacking Teacher.
         - Your goal is to teach the user about cybersecurity, penetration testing, and network defense.
         - Explain concepts clearly (e.g., SQL Injection, XSS, Phishing) but ALWAYS emphasize the legal and ethical boundaries.
@@ -1145,10 +1194,8 @@ endVoiceBtn.addEventListener('click', endVoiceConversation);
 
 // --- Chat History Functions ---
 
-// Function to render skeleton loader in sidebar
 function showChatHistoryLoading() {
     chatHistoryContainer.innerHTML = '';
-    // Create 5 skeleton items to simulate loading list
     for (let i = 0; i < 5; i++) {
         const item = document.createElement('div');
         item.className = 'history-skeleton-item';
@@ -1231,14 +1278,12 @@ async function saveTemporaryChatToDB() {
 }
 
 async function loadChatsFromDB() {
-    // 1. Show Sidebar Skeleton Loader (Better UX than full screen block)
     showChatHistoryLoading();
 
     try {
         const response = await fetch('/api/chats');
         if (response.ok) {
             chatHistory = await response.json();
-            // 2. Render actual history (replaces skeleton)
             renderChatHistorySidebar();
         } else {
             console.error('Failed to load chats from DB');
@@ -1476,22 +1521,15 @@ function renderLibraryFiles(files) {
 
         let previewHtml = '';
         
-        // --- UPDATED LOGIC HERE ---
-        // Check fileType directly since 'fileCategory' is not sent by backend
         if (file.fileType.startsWith('image/')) {
-            // It's an image: Show the actual image thumbnail
             previewHtml = `<img src="data:${file.fileType};base64,${file.fileData}" alt="${file.fileName}" class="w-20 h-20 object-cover rounded-md mb-2">`;
         } else if (file.fileType.includes('pdf')) {
-            // It's a PDF: Show PDF icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         } else if (file.fileType.includes('word') || file.fileType.includes('document')) {
-             // It's a Document: Show Blue Doc icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
         } else if (file.fileType.includes('text/') || file.fileName.endsWith('.py') || file.fileName.endsWith('.js') || file.fileName.endsWith('.html')) {
-             // It's Code/Text: Show Green Code icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l-4 4-4-4M6 16l-4-4 4-4" /></svg>`;
         } else {
-            // Default Generic File Icon
             previewHtml = `<svg class="w-20 h-20 mb-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         }
         
