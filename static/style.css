@@ -141,7 +141,10 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 }
 .chat-history-item .chat-title {
     white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; flex-grow: 1; margin-right: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    margin-right: 0.5rem;
 }
 .chat-history-item:hover { background-color: #e5e7eb; }
 .chat-history-item.active { background-color: #dbeafe; color: #1e40af; }
@@ -467,44 +470,6 @@ header .text-indigo-600 {
 }
 
 /* ==================================================
- * GITHUB REPO CARD STYLES (image_1eb481.png)
- * ==================================================
- */
-.github-repo-card {
-    background: #e9eef6;
-    border-radius: 20px;
-    padding: 16px 24px;
-    display: inline-flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 200px;
-    margin-bottom: 20px;
-}
-.dark .github-repo-card {
-    background: #333537;
-}
-.repo-name {
-    color: #1f1f1f;
-    font-weight: 500;
-    font-size: 14px;
-}
-.dark .repo-name { color: #e3e3e3; }
-.repo-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: #444746;
-}
-.dark .repo-meta { color: #c4c7c5; }
-
-/* Modal Input Adjustments for Import code modal */
-#github-url-input::placeholder {
-    color: #757575;
-    opacity: 0.8;
-}
-
-/* ==================================================
  * WEB VULNERABILITY SCANNER ADDITIONS
  * ==================================================
  */
@@ -550,7 +515,7 @@ header .text-indigo-600 {
     color: #065f46; 
 }
 
-/* Dark mode support for badges */
+/* Dark mode overrides for badges */
 .dark .vuln-high { background-color: rgba(185, 28, 28, 0.2); color: #f87171; }
 .dark .vuln-med { background-color: rgba(146, 64, 14, 0.2); color: #fbbf24; }
 .dark .vuln-low { background-color: rgba(6, 95, 70, 0.2); color: #34d399; }
