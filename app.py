@@ -166,5 +166,9 @@ def chat():
 # ... [Remaining routes: Library, History, Authentication remain the same as your source] ...
 
 if __name__ == '__main__':
+
+@app.errorhandler(404)
+def handle_404(e):
+    return redirect(url_for('login_page'))
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
