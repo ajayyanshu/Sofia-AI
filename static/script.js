@@ -47,11 +47,6 @@ const scanUrlInput = document.getElementById('scan-url-input');
 const confirmScanBtn = document.getElementById('confirm-scan-btn');
 const closeScanModalBtn = document.getElementById('close-scan-modal');
 
-// T&C Consent Elements (NEW)
-const tcModal = document.getElementById('tc-modal');
-const acceptTcBtn = document.getElementById('accept-tc-btn');
-const declineTcBtn = document.getElementById('decline-tc-btn');
-
 // Contact Us Elements
 const contactMenuItem = document.getElementById('contact-menu-item');
 const contactModal = document.getElementById('contact-modal');
@@ -110,7 +105,6 @@ let currentChatId = null;
 
 // Hacking Mode State
 let isEthicalHackingMode = false;
-let hasAcceptedScannerTC = false; // Tracks if user consented to security audit (NEW)
 
 // Plan & Usage State
 let usageCounts = {
@@ -320,49 +314,13 @@ function updateHackingModeUI() {
     }
 }
 
-// --- Web Vulnerability Scanner Logic (UPDATED WITH T&C AND MODAL) ---
+// --- Web Vulnerability Scanner Logic (UPDATED WITH MODAL) ---
 function triggerWebScan() {
-    if (!hasAcceptedScannerTC) {
-        tcModal.classList.remove('hidden');
-        tcModal.classList.add('flex');
-    } else {
-        showScanModal();
-    }
-}
-
-function showScanModal() {
     scanModal.classList.remove('hidden');
     scanModal.classList.add('flex');
     scanUrlInput.value = ''; 
     scanUrlInput.focus();
 }
-
-acceptTcBtn.addEventListener('click', async () => {
-    hasAcceptedScannerTC = true;
-    tcModal.classList.add('hidden');
-    tcModal.classList.remove('flex');
-    
-    // Log consent and device info to backend (Simulated)
-    try {
-        await fetch('/api/log-consent', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                timestamp: new Date().toISOString(),
-                feature: "Web Scanner Consent"
-            })
-        });
-        showScanModal();
-    } catch (error) {
-        console.error("Consent log failed:", error);
-        showScanModal(); // Still show for simulation purposes
-    }
-});
-
-declineTcBtn.addEventListener('click', () => {
-    tcModal.classList.add('hidden');
-    tcModal.classList.remove('flex');
-});
 
 confirmScanBtn.addEventListener('click', () => {
     let url = scanUrlInput.value.trim();
@@ -1439,12 +1397,6 @@ async function renameChat(chatId) {
 }
 
 async function deleteChat(chatId) {
-    // NEW: Block deletion if Web Scanner consent was given
-    if (hasAcceptedScannerTC) {
-        alert("Chat deletion is disabled during active security monitoring sessions for audit integrity.");
-        return;
-    }
-    
     if (confirm('Are you sure you want to delete this chat? This will be permanent.')) {
          try {
             const response = await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
@@ -1838,12 +1790,6 @@ function initializeApp() {
     });
     
     deleteAccountBtn.addEventListener('click', async () => {
-        // NEW: Block account deletion if Web Scanner consent was given
-        if (hasAcceptedScannerTC) {
-            alert("Account deletion is disabled after initiating security scans. Contact support for audit review.");
-            return;
-        }
-
         if(confirm('Are you sure you want to delete your account? This action is permanent and cannot be undone.')) {
              try {
                 const response = await fetch('/delete_account', { method: 'DELETE' });
