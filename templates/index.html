@@ -203,7 +203,7 @@
                 <div class="flex justify-between items-center">
                     <h2 class="text-xl font-bold" data-lang="cyberTraining">Learn Ethical Hacking</h2>
                     <button id="close-cyber-modal" class="text-white/80 hover:text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <p class="text-indigo-100 text-sm mt-1">Master cybersecurity with AI guidance</p>
@@ -225,6 +225,35 @@
                     <span id="hacking-mode-status-text">Enable Teacher Mode</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scan-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden p-8 relative transform transition-all">
+            <button id="close-scan-modal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Scan Website URL</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Analyze a target for security vulnerabilities (Educational Simulation).</p>
+
+            <div class="space-y-4">
+                <div class="relative">
+                    <label class="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1 ml-1">Target URL or Subdomain</label>
+                    <input type="text" id="scan-url-input" 
+                        placeholder="e.g., example.com and subdomain.exammple.com" 
+                        class="w-full p-4 border-2 border-indigo-50 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white focus:border-indigo-500 focus:ring-0 outline-none transition-all placeholder:text-gray-400">
+                </div>
+                
+                <button id="confirm-scan-btn" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2">
+                    <span>Start Security Scan</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </button>
             </div>
