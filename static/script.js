@@ -39,9 +39,13 @@ const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
 const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
 const cyberGameControls = document.getElementById('cyber-game-controls');
 
-// Web Vulnerability Scanner Elements (NEW)
+// Web Vulnerability Scanner Elements (UPDATED)
 const scanUrlBtn = document.getElementById('scan-url-btn');
 const webScannerSidebarBtn = document.getElementById('web-scanner-sidebar-btn');
+const scanModal = document.getElementById('scan-modal');
+const scanUrlInput = document.getElementById('scan-url-input');
+const confirmScanBtn = document.getElementById('confirm-scan-btn');
+const closeScanModalBtn = document.getElementById('close-scan-modal');
 
 // Contact Us Elements
 const contactMenuItem = document.getElementById('contact-menu-item');
@@ -310,11 +314,25 @@ function updateHackingModeUI() {
     }
 }
 
-// --- Web Vulnerability Scanner Logic (NEW) ---
+// --- Web Vulnerability Scanner Logic (UPDATED WITH MODAL) ---
 function triggerWebScan() {
-    const url = prompt("Enter the target URL for vulnerability scanning (e.g., http://example.com):");
+    scanModal.classList.remove('hidden');
+    scanModal.classList.add('flex');
+    scanUrlInput.value = ''; 
+    scanUrlInput.focus();
+}
+
+confirmScanBtn.addEventListener('click', () => {
+    let url = scanUrlInput.value.trim();
     
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    if (url) {
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'http://' + url;
+        }
+
+        scanModal.classList.add('hidden');
+        scanModal.classList.remove('flex');
+
         if (document.body.classList.contains('initial-view')) {
             document.body.classList.remove('initial-view');
             welcomeMessageContainer.classList.add('hidden');
@@ -334,12 +352,23 @@ function triggerWebScan() {
         3. Explain each vulnerability found and provide remediation (fix) steps.
         4. Disclaimer: This is an educational simulation.]\n\nUser Link: ${url}`;
 
-        messageInput.value = `Scan this URL for vulnerabilities: ${url}`;
         sendMessage(scanPrompt); 
-    } else if (url) {
-        alert("Please enter a valid URL starting with http:// or https://");
+    } else {
+        alert("Please enter a target domain or URL.");
     }
-}
+});
+
+closeScanModalBtn.addEventListener('click', () => {
+    scanModal.classList.add('hidden');
+    scanModal.classList.remove('flex');
+});
+
+scanModal.addEventListener('click', (e) => {
+    if (e.target === scanModal) {
+        scanModal.classList.add('hidden');
+        scanModal.classList.remove('flex');
+    }
+});
 
 scanUrlBtn.addEventListener('click', () => {
     addMenu.classList.add('hidden');
@@ -379,7 +408,7 @@ const translations = {
         usagePlan: 'Usage & Plan',
         upgradePlan: 'Upgrade your plan',
         cyberTraining: 'Cyber Training',
-        webScanner: 'Web Scanner', // NEW
+        webScanner: 'Web Scanner', 
         upgrade: 'Upgrade',
         verify: 'Verify',
         verified: 'Verified',
@@ -435,7 +464,7 @@ const translations = {
         usagePlan: 'उपयोग और योजना',
         upgradePlan: 'अपना प्लान अपग्रेड करें',
         cyberTraining: 'साइबर प्रशिक्षण',
-        webScanner: 'वेब स्कैनर', // NEW
+        webScanner: 'वेब स्कैनर', 
         upgrade: 'अपग्रेड करें',
         verify: 'सत्यापित करें',
         verified: 'सत्यापित',
@@ -491,7 +520,7 @@ const translations = {
         usagePlan: 'ব্যবহার এবং পরিকল্পনা',
         upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
         cyberTraining: 'সাইবার প্রশিক্ষণ',
-        webScanner: 'ওয়েব স্ক্যানার', // NEW
+        webScanner: 'ওয়েব স্ক্যানার', 
         upgrade: 'আপগ্রেড করুন',
         verify: 'যাচাই করুন',
         verified: 'যাচাইকৃত',
@@ -855,7 +884,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             if (fileInfo.type.startsWith('image/')) {
                  fileHtml = `<img src="${fileInfoForDisplay.dataUrl}" alt="User upload" class="rounded-lg mb-2 max-w-xs">`;
             } else {
-                fileHtml = `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2"><svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><span class="text-sm text-blue-800">${fileInfo.name}</span></div>`;
+                fileHtml = `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2"><svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><span class="text-sm text-blue-800">${fileInfo.name}</span></div>`;
             }
         }
         
