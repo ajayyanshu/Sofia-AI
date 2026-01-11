@@ -314,7 +314,7 @@ function updateHackingModeUI() {
     }
 }
 
-// --- Web Vulnerability Scanner Logic (UPDATED FOR REAL SCANNING) ---
+// --- Web Vulnerability Scanner Logic (UPDATED WITH MODAL) ---
 function triggerWebScan() {
     scanModal.classList.remove('hidden');
     scanModal.classList.add('flex');
@@ -340,16 +340,18 @@ confirmScanBtn.addEventListener('click', () => {
         }
 
         addMessage({ 
-            text: `Initiating real-time security scan for: **${url}**...`, 
+            text: `Scan initiated for: **${url}**`, 
             sender: 'user', 
             mode: 'web_search' 
         });
 
-        // Structure the prompt so the backend recognizes it as a tool trigger
-        const scanPrompt = `[SYSTEM: Act as a Web Vulnerability Scanner. URL: ${url}]`;
+        const scanPrompt = `[SYSTEM: Act as a Web Vulnerability Scanner. 
+        Analyze the provided URL: ${url}. 
+        1. Perform a simulated scan for: SQLi, XSS, CSRF, and Open Redirects.
+        2. Provide a 'Cyber Security Report Card' in the response.
+        3. Explain each vulnerability found and provide remediation (fix) steps.
+        4. Disclaimer: This is an educational simulation.]\n\nUser Link: ${url}`;
 
-        // Set currentMode to trigger the search indicator in UI
-        currentMode = 'web_search';
         sendMessage(scanPrompt); 
     } else {
         alert("Please enter a target domain or URL.");
