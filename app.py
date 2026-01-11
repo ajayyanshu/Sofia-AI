@@ -127,48 +127,38 @@ def login_page(): return render_template('login.html')
 def signup_page(): return render_template('signup.html')
 
 # --- Chat API with Tool Integration ---
+# ... (existing imports and config)
+
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
-    # Rate limiting for Free Users
-    if not current_user.isPremium and not current_user.isAdmin:
-        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-        usage = user_data.get('usage_counts', {})
-        if usage.get('messages', 0) >= 15:
-            return jsonify({'error': 'Daily limit reached. Please upgrade.'}), 429
-        users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.messages': 1}})
-
-    data = request.json
-    user_message = data.get('text', '')
-    request_mode = data.get('mode')
-    
-    # DETECT REAL SCAN TRIGGER
-    if "Act as a Web Vulnerability Scanner" in user_message:
-        url_match = re.search(r"URL: (https?://[^\s\.]+\.[^\s]+)", user_message)
-        if url_match:
-            target = url_match.group(1)
-            raw_tool_output = run_real_scan(target)
-            
-            # Formulate prompt for AI to process raw data into the UI Report Card
-            user_message = (
-                f"You are a Security Analyst. I have run Nikto and Nuclei on {target}. "
-                f"Here is the raw output:\n\n{raw_tool_output}\n\n"
-                "Please analyze this data and provide a 'Cyber Security Report Card'. "
-                "Include a Score (0-100), a list of vulnerabilities with remediation steps, "
-                "and a final security summary. Use the formatting defined in the system styles."
-            )
-
-    # Regular AI Processing
     try:
-        model = genai.GenerativeModel("gemini-2.0-flash-lite") # Updated to 2026 stable version
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data received"}), 400
+
+        user_message = data.get('text', '')
+        
+        # Security Scan Logic (Nikto/Nuclei Trigger)
+        if "[SYSTEM: Act as a Web Vulnerability Scanner." in user_message:
+            url_match = re.search(r"URL: (https?://[^\s]+)", user_message)
+            if url_match:
+                target = url_match.group(1)
+                # Call the scanning function (ensure run_real_scan is defined in your app.py)
+                scan_results = run_real_scan(target) 
+                user_message = f"Analyze these results: {scan_results}"
+
+        # Gemini AI Logic
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(user_message)
+        
         return jsonify({'response': response.text})
+
     except Exception as e:
-        return jsonify({'response': "Sofia is having trouble processing that request right now."})
+        print(f"Chat Error: {str(e)}")
+        return jsonify({'error': "Server internal error"}), 500
 
-# (Keep all other auth, library, and history routes from your original code...)
-# --- API Authentication and History routes go here as per your original file ---
-
+# MANDATORY: This allows the server to be reached from your browser
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    # Use 0.0.0.0 to ensure it's accessible within Docker or on a network
+    app.run(host='0.0.0.0', port=5000, debug=True)
