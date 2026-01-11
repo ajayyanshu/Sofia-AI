@@ -760,40 +760,14 @@ window.removeFile = function() {
 async function sendMessage(overrideText = null) {
     const text = overrideText || messageInput.value.trim();
     if (!text && !fileData) return;
-
-    // ... (UI logic for typing indicators)
-
-    try {
-        const response = await fetch('/chat', { // Ensure this matches your Flask route
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json' 
-            },
-            body: JSON.stringify({
-                text: text,
-                fileData: fileData,
-                fileType: fileType,
-                mode: currentMode
-            })
-        });
-
-        if (!response.ok) {
-            // This catches 404, 500, or 429 errors
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Server Error ${response.status}`);
-        }
-
-        const result = await response.json();
-        addMessage({ text: result.response, sender: 'ai' });
-
-    } catch (error) {
-        console.error("Connection Failed:", error);
-        addMessage({ 
-            text: "❌ **Connection Error:** Could not connect to Sofia's brain. Please check if the backend server is running.", 
-            sender: 'system' 
-        });
+    
+    if (!isPremium && !isAdmin && usageCounts.messages >= usageLimits.messages) {
+        alert("You've reached your monthly message limit. Please upgrade to continue.");
+        if (isVoiceConversationActive) endVoiceConversation();
+        openSettingsModal();
+        switchSettingsTab('usage');
+        return;
     }
-}
 
     if (document.body.classList.contains('initial-view')) {
         document.body.classList.remove('initial-view');
@@ -1851,4 +1825,3 @@ function typeWriterEffect(elementId, text, speed = 40) {
 }
 
 initializeApp();
-
