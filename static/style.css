@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); 
 
 ::selection {
     background-color: #3b82f6;
@@ -530,3 +530,4 @@ header .text-indigo-600 {
 .vuln-item.high { border-left-color: #ef4444; }
 .vuln-item.med { border-left-color: #f59e0b; }
 .vuln-item.low { border-left-color: #10b981; }
+
