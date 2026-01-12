@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* --- Root and Body Styles --- */
 ::selection {
     background-color: #3b82f6;
     color: #ffffff;
@@ -9,7 +8,6 @@
 html {
     overscroll-behavior: none;
 }
-
 body {
     overflow: hidden;
     overscroll-behavior: none;
@@ -17,7 +15,21 @@ body {
     background-color: #f8fafc;
 }
 
-/* --- Chat Layout --- */
+/* FIX: Ensure Cyber Training Badge is visible without selection */
+header span span {
+    display: inline-flex !important;
+    align-items: center;
+    background-color: #16a34a !important; /* Green-600 for high contrast */
+    color: #ffffff !important;           /* Force white text */
+    font-weight: 700 !important;
+    padding: 2px 8px !important;
+    border-radius: 9999px !important;
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
 .chat-container {
     flex: 1;
     display: flex;
@@ -28,11 +40,9 @@ body {
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
-
 .chat-container::-webkit-scrollbar {
     display: none;
 }
-
 .message-bubble {
     max-width: 85%;
     padding: 0.75rem 1.25rem;
@@ -42,7 +52,6 @@ body {
     line-height: 1.6;
     position: relative;
 }
-
 .user-message {
     background-color: #3b82f6;
     color: white;
@@ -51,15 +60,25 @@ body {
     width: fit-content;
 }
 
+/* FIX: System message/status visibility */
+.system-message { 
+    background-color: #f87171; 
+    color: white; 
+    align-self: center; 
+    text-align: center; 
+    font-size: 0.875rem; 
+    padding: 0.5rem 1rem; 
+    border-radius: 1rem;
+}
+
 .ai-message {
     background-color: #e5e7eb;
     color: #1f2937;
     align-self: flex-start;
     border-bottom-left-radius: 0.5rem;
-    padding-bottom: 2.5rem; 
+    padding-bottom: 2.5rem;
     width: fit-content; 
 }
-
 .ai-message-container {
      display: flex;
      align-items: flex-start;
@@ -69,7 +88,6 @@ body {
      margin-bottom: 0.75rem;
      width: fit-content;
 }
-
 .ai-avatar {
     width: 2.5rem;
     height: 2.5rem;
@@ -80,14 +98,10 @@ body {
     justify-content: center;
     flex-shrink: 0;
 }
-
-/* --- Message Content Formatting --- */
 .ai-message ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .ai-message li { margin-bottom: 0.25rem; }
 .ai-message strong, .ai-message b { font-weight: 600; color: #111827; }
-.system-message { background-color: #f87171; color: white; align-self: center; text-align: center; font-size: 0.875rem; padding: 0.5rem 1rem; }
 
-/* --- Inputs and Previews --- */
 #message-input { resize: none; overflow-y: hidden; max-height: 150px; }
 #file-preview-container { padding: 0.5rem 0.5rem 0 0.5rem; display: flex; gap: 0.5rem; }
 .preview-item { position: relative; border-radius: 0.5rem; overflow: hidden; border: 1px solid #e5e7eb; }
@@ -98,7 +112,6 @@ body {
 .doc-preview .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; color: #4b5563; }
 .remove-preview-btn { position: absolute; top: 2px; right: 2px; width: 1.25rem; height: 1.25rem; background-color: rgba(0,0,0,0.5); color: white; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; line-height: 1; }
 
-/* --- Sidebar and UI Components --- */
 body.initial-view .chat-area { 
     display: flex; 
     flex-direction: column; 
@@ -127,7 +140,6 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 .action-btn:hover { background-color: #d1d5db; }
 .menu-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s; }
 .menu-item:hover { background-color: #f3f4f6; }
-
 .listening-bar { width: 3px; height: 5px; background-color: #6b7280; border-radius: 5px; animation: listening 1.2s infinite ease-in-out; }
 .listening-bar:nth-child(2) { animation-delay: -1.0s; }
 .listening-bar:nth-child(3) { animation-delay: -0.8s; }
@@ -135,11 +147,14 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     0%, 40%, 100% { transform: scaleY(0.4); }
     20% { transform: scaleY(1.0); }
 }
-
-#sidebar { transition: transform 0.3s ease-in-out; }
-.sidebar-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer; color: #374151; font-weight: 500; }
+#sidebar {
+    transition: transform 0.3s ease-in-out;
+}
+.sidebar-item {
+     display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer;
+     color: #374151; font-weight: 500;
+}
 .sidebar-item:hover { background-color: #e5e7eb; }
-
 .chat-history-item {
     display: flex;
     align-items: center;
@@ -161,7 +176,9 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 .chat-history-item:hover { background-color: #e5e7eb; }
 .chat-history-item.active { background-color: #dbeafe; color: #1e40af; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 .ai-avatar-animated {
     position: relative;
     width: 2.5rem;
@@ -179,11 +196,11 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     border-radius: 50%;
     animation: spin 1.5s linear infinite;
 }
+#settings-modal, #library-modal, #cyber-modal {
+    background-color: rgba(0, 0, 0, 0.5);
+}
 
-#settings-modal, #library-modal, #cyber-modal { background-color: rgba(0, 0, 0, 0.5); }
-
-/* --- Dark Mode Styles --- */
-.dark ::selection { background-color: #5899ff; color: #ffffff; }
+/* IMPROVED DARK MODE */
 .dark body { background-color: #000000; }
 .dark #sidebar { background-color: #111111; border-right-color: #292929;}
 .dark .sidebar-item { color: #e0e0e0; }
@@ -191,25 +208,20 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 .dark .chat-history-item { color: #a0a0a0; }
 .dark .chat-history-item:hover { background-color: #252525; }
 .dark .chat-history-item.active { background-color: #1e3a8a; color: #e0e0e0; }
-.dark input[type="search"] { background-color: #1f1f1f; border-color: #333333; color: #f0f0f0; }
-.dark .border-t { border-top-color: #292929; }
-.dark .border-b { border-bottom-color: #292929; }
-.dark #user-menu { background-color: #181818; border-color: #292929; }
-.dark #add-menu { background-color: #181818; border-color: #292929; }
-.dark .menu-item:hover { background-color: #252525; }
-.dark .text-gray-700 { color: #e0e0e0; }
-.dark header { background-color: #000000; border-b-color: #292929; }
+.dark header { background-color: #000000; border-bottom-color: #292929; }
 .dark main.chat-area { background-color: #000000; }
 .dark #welcome-message-container h1 { color: #f0f0f0; }
 .dark footer { background-color: #000000; }
 .dark footer > div { background-color: #1c1c1c; border-color: #333333; }
 .dark #message-input { color: #f0f0f0; }
 .dark .ai-message { background-color: #222222; color: #e0e0e0; }
-.dark .ai-message strong, .dark .ai-message b { color: #f9fafb; }
-.dark #settings-modal .bg-white, .dark #library-modal .bg-white, .dark #cyber-modal .bg-white { background-color: #181818; }
-.dark #settings-modal .settings-tab-btn.active { background-color: #252525; color: #f0f0f0; }
 
-/* --- Code Block Styling --- */
+/* FIX: Force Dark Mode Badge visibility */
+.dark header span span {
+    background-color: #22c55e !important; /* Brighter green for dark mode */
+    color: #000000 !important;           /* Black text on bright green */
+}
+
 .ai-message pre {
     position: relative;
     background-color: #272822; 
@@ -234,19 +246,8 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
+    transition: background-color 0.2s;
     opacity: 0.7;
-}
-
-/* --- Visual Enhancements --- */
-body.initial-view {
-    background: linear-gradient(-45deg, #f8fafc, #e0e7ff, #f3e8ff, #e0f2fe);
-    background-size: 400% 400%;
-    animation: gradientBG 15s ease infinite;
-}
-
-.dark body.initial-view {
-    background: linear-gradient(-45deg, #000000, #111827, #1e1b4b, #0f172a);
-    background-size: 400% 400%;
 }
 
 @keyframes gradientBG {
@@ -258,45 +259,23 @@ body.initial-view {
 .typing-cursor::after {
     content: '|';
     margin-left: 5px;
-    color: #4f46e5; 
+    color: #4f46e5;
     animation: blink 1s step-start infinite;
+    font-weight: bold;
 }
 
-@keyframes blink { 50% { opacity: 0; } }
-
-/* --- FIXED GRADIENT LOGO AND BADGE VISIBILITY --- */
-header .text-indigo-600 {
-    background: linear-gradient(to right, #4f46e5, #9333ea);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-weight: 800;
+@keyframes blink {
+    50% { opacity: 0; }
 }
 
-/* Fixes invisible "Cyber Training" text by resetting transparency on child spans */
-header .text-indigo-600 span {
-    -webkit-text-fill-color: initial !important;
-    background-clip: border-box;
-    -webkit-background-clip: border-box;
-}
-
-.dark header .text-indigo-600 {
-    background: linear-gradient(to right, #818cf8, #c084fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* Improved badge visibility for dark mode */
-.dark header .text-indigo-600 .bg-green-100 {
-    background-color: #065f46 !important;
-    color: #d1fae5 !important;
-}
-
-/* --- Remaining Skeleton and Loader Styles --- */
 #loading-overlay {
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    z-index: 9999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); 
+    z-index: 9999; 
     display: flex;
     justify-content: center;
     align-items: center;
@@ -305,27 +284,32 @@ header .text-indigo-600 span {
 }
 
 .spinner {
-    width: 60px; height: 60px;
+    width: 60px;
+    height: 60px;
     border: 5px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
-    border-top-color: #4f46e5;
+    border-top-color: #4f46e5; 
     animation: spin 1s ease-in-out infinite;
+    margin: 0 auto;
 }
 
 .history-skeleton-item {
-    padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
     background-color: rgba(0, 0, 0, 0.03);
     animation: skeleton-pulse 1.5s infinite ease-in-out;
 }
 
-.dark .history-skeleton-item { background-color: rgba(255, 255, 255, 0.05); }
-
-.skeleton-line { height: 10px; background-color: #cbd5e1; border-radius: 4px; margin-bottom: 6px; }
-.dark .skeleton-line { background-color: #4b5563; }
-.skeleton-line.title { width: 70%; height: 12px; }
-.skeleton-line.subtitle { width: 40%; }
+.skeleton-line {
+    height: 10px;
+    background-color: #cbd5e1; 
+    border-radius: 4px;
+    margin-bottom: 6px;
+}
 
 @keyframes skeleton-pulse {
-    0%, 100% { opacity: 0.5; }
+    0% { opacity: 0.5; }
     50% { opacity: 0.8; }
+    100% { opacity: 0.5; }
 }
