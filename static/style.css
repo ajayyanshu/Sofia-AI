@@ -14,22 +14,6 @@ body {
     font-family: 'Inter', sans-serif;
     background-color: #f8fafc;
 }
-
-/* FIX: Ensure Cyber Training Badge is visible without selection */
-header span span {
-    display: inline-flex !important;
-    align-items: center;
-    background-color: #16a34a !important; /* Green-600 for high contrast */
-    color: #ffffff !important;           /* Force white text */
-    font-weight: 700 !important;
-    padding: 2px 8px !important;
-    border-radius: 9999px !important;
-    font-size: 0.75rem !important;
-    line-height: 1rem !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
 .chat-container {
     flex: 1;
     display: flex;
@@ -59,24 +43,12 @@ header span span {
     border-bottom-right-radius: 0.5rem;
     width: fit-content;
 }
-
-/* FIX: System message/status visibility */
-.system-message { 
-    background-color: #f87171; 
-    color: white; 
-    align-self: center; 
-    text-align: center; 
-    font-size: 0.875rem; 
-    padding: 0.5rem 1rem; 
-    border-radius: 1rem;
-}
-
 .ai-message {
     background-color: #e5e7eb;
     color: #1f2937;
     align-self: flex-start;
     border-bottom-left-radius: 0.5rem;
-    padding-bottom: 2.5rem;
+    padding-bottom: 2.5rem; /* Space for action icons */
     width: fit-content; 
 }
 .ai-message-container {
@@ -101,7 +73,7 @@ header span span {
 .ai-message ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .ai-message li { margin-bottom: 0.25rem; }
 .ai-message strong, .ai-message b { font-weight: 600; color: #111827; }
-
+.system-message { background-color: #f87171; color: white; align-self: center; text-align: center; font-size: 0.875rem; padding: 0.5rem 1rem; }
 #message-input { resize: none; overflow-y: hidden; max-height: 150px; }
 #file-preview-container { padding: 0.5rem 0.5rem 0 0.5rem; display: flex; gap: 0.5rem; }
 .preview-item { position: relative; border-radius: 0.5rem; overflow: hidden; border: 1px solid #e5e7eb; }
@@ -112,6 +84,7 @@ header span span {
 .doc-preview .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; color: #4b5563; }
 .remove-preview-btn { position: absolute; top: 2px; right: 2px; width: 1.25rem; height: 1.25rem; background-color: rgba(0,0,0,0.5); color: white; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; line-height: 1; }
 
+/* Initial View Styling */
 body.initial-view .chat-area { 
     display: flex; 
     flex-direction: column; 
@@ -152,7 +125,7 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 }
 .sidebar-item {
      display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer;
-     color: #374151; font-weight: 500;
+     color: #374151; font-medium;
 }
 .sidebar-item:hover { background-color: #e5e7eb; }
 .chat-history-item {
@@ -199,41 +172,80 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
 #settings-modal, #library-modal, #cyber-modal {
     background-color: rgba(0, 0, 0, 0.5);
 }
-
-/* IMPROVED DARK MODE */
+/* Improved Dark Mode Styles */
+.dark ::selection {
+    background-color: #5899ff;
+    color: #ffffff;
+}
 .dark body { background-color: #000000; }
-.dark #sidebar { background-color: #111111; border-right-color: #292929;}
+.dark #sidebar { background-color: #111111; border-r-color: #292929;}
 .dark .sidebar-item { color: #e0e0e0; }
 .dark .sidebar-item:hover { background-color: #252525; }
 .dark .chat-history-item { color: #a0a0a0; }
 .dark .chat-history-item:hover { background-color: #252525; }
 .dark .chat-history-item.active { background-color: #1e3a8a; color: #e0e0e0; }
-.dark header { background-color: #000000; border-bottom-color: #292929; }
+
+.dark input[type="search"], .dark input[type="file"]::file-selector-button { background-color: #1f1f1f; border-color: #333333; color: #f0f0f0; }
+.dark input[type="file"]::file-selector-button:hover { background-color: #333; }
+.dark .border-t { border-top-color: #292929; }
+.dark .border-b { border-bottom-color: #292929; }
+.dark #user-menu { background-color: #181818; border-color: #292929; }
+.dark #add-menu { background-color: #181818; border-color: #292929; }
+.dark .menu-item:hover { background-color: #252525; }
+.dark .text-gray-700 { color: #e0e0e0; }
+.dark .text-gray-500 { color: #a0a0a0; }
+.dark header { background-color: #000000; border-b-color: #292929; }
 .dark main.chat-area { background-color: #000000; }
 .dark #welcome-message-container h1 { color: #f0f0f0; }
 .dark footer { background-color: #000000; }
 .dark footer > div { background-color: #1c1c1c; border-color: #333333; }
 .dark #message-input { color: #f0f0f0; }
 .dark .ai-message { background-color: #222222; color: #e0e0e0; }
+.dark .ai-message strong, .dark .ai-message b { color: #f9fafb; }
+.dark .action-btn { color: #a0a0a0; }
+.dark .action-btn:hover { background-color: #333333; }
+.dark #settings-modal .bg-white, .dark #library-modal .bg-white, .dark #cyber-modal .bg-white { background-color: #181818; }
+.dark #settings-modal h2, .dark #settings-modal h3, .dark #settings-modal label, .dark #settings-modal span, .dark #settings-modal p, .dark .settings-tab-btn { color: #f0f0f0; }
+.dark #library-modal h2, .dark #library-modal p { color: #f0f0f0; }
+.dark .sm\:border-r { border-right-color: #292929; }
+.dark #settings-modal .settings-tab-btn.active { background-color: #252525; color: #f0f0f0; }
+.dark #settings-modal .settings-tab-btn:hover { background-color: #333333; }
+.dark #settings-modal .theme-btn { border-color: #333333; }
+.dark #settings-modal select { background-color: #1f1f1f; border-color: #333333; color: #f0f0f0; }
+.dark #profile-settings-content .border-b { border-bottom-color: #333; }
+.dark #usage-settings-content .border { border-color: #333; }
+.dark #profile-settings-content .text-gray-600 { color: #a0a0a0; }
+.dark #profile-settings-content .text-gray-800 { color: #f0f0f0; }
+.dark .plan-table .bg-gray-50 { background-color: #1f2739; }
+.dark .plan-table .border-b { border-color: #2d3748; }
+.dark .plan-table .text-gray-800 { color: #e5e7eb; }
+.dark .plan-table .text-gray-600 { color: #d1d5db; }
 
-/* FIX: Force Dark Mode Badge visibility */
-.dark header span span {
-    background-color: #22c55e !important; /* Brighter green for dark mode */
-    color: #000000 !important;           /* Black text on bright green */
-}
+/*
+ * Code Block Styling (Prism.js)
+ */
 
 .ai-message pre {
     position: relative;
-    background-color: #272822; 
+    background-color: #272822; /* Matches Okaidia theme */
     border-radius: 0.5rem;
     padding: 1rem;
-    padding-top: 2.5rem; 
+    padding-top: 2.5rem; /* Space for the copy button */
     margin-top: 0.75rem;
     margin-bottom: 0.75rem;
     overflow-x: auto;
     max-width: 100%;
 }
 
+.ai-message code,
+.ai-message pre[class*="language-"] {
+    font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.5;
+    text-shadow: none; /* Override Prism's default */
+}
+
+/* Custom "Copy Code" button */
 .code-copy-btn {
     position: absolute;
     top: 0.5rem;
@@ -250,32 +262,140 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     opacity: 0.7;
 }
 
+.code-copy-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    opacity: 1;
+}
+
+.code-copy-btn:active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Make sure code inside the <pre> block is not styled by Prism's default */
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+    background: transparent; /* Makes the pre background visible */
+}
+
+/* * Cyber Security Report Card Styles 
+ */
+.cyber-report-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    max-width: 100%;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin-top: 10px;
+}
+
+.report-score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0 auto 1rem auto;
+    border: 6px solid;
+}
+
+.score-high { border-color: #22c55e; color: #15803d; background: #f0fdf4; }
+.score-med { border-color: #eab308; color: #a16207; background: #fefce8; }
+.score-low { border-color: #ef4444; color: #b91c1c; background: #fef2f2; }
+
+/* Dark mode support for report card */
+.dark .cyber-report-card { background: #1f2937; border-color: #374151; color: #f3f4f6; }
+.dark .score-high { background: rgba(34, 197, 94, 0.1); color: #4ade80; border-color: #22c55e; }
+.dark .score-med { background: rgba(234, 179, 8, 0.1); color: #facc15; border-color: #eab308; }
+.dark .score-low { background: rgba(239, 68, 68, 0.1); color: #f87171; border-color: #ef4444; }
+
+
+/* * ==================================================
+ * ANIMATIONS & VISUAL ENHANCEMENTS
+ * ==================================================
+ */
+
+/* 1. Breathing Gradient Background (Welcome Screen) */
+/* Adds a subtle moving gradient to the white background */
+body.initial-view {
+    background: linear-gradient(-45deg, #f8fafc, #e0e7ff, #f3e8ff, #e0f2fe);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+}
+
+/* Dark Mode Gradient Override */
+.dark body.initial-view {
+    background: linear-gradient(-45deg, #000000, #111827, #1e1b4b, #0f172a);
+    background-size: 400% 400%;
+}
+
 @keyframes gradientBG {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
 
+/* 2. Typing Cursor Effect */
+/* Used by the JavaScript typewriter effect */
 .typing-cursor::after {
     content: '|';
     margin-left: 5px;
-    color: #4f46e5;
+    color: #4f46e5; /* Indigo color */
     animation: blink 1s step-start infinite;
     font-weight: bold;
+}
+.dark .typing-cursor::after {
+    color: #818cf8; /* Lighter indigo for dark mode */
 }
 
 @keyframes blink {
     50% { opacity: 0; }
 }
 
+/* 3. Floating Input Bar */
+/* Gives the input bar a gentle float on the welcome screen */
+body.initial-view footer .max-w-3xl {
+    animation: floatInput 6s ease-in-out infinite;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+.dark body.initial-view footer .max-w-3xl {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes floatInput {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+    100% { transform: translateY(0px); }
+}
+
+/* 4. Gradient Text for Header Logo */
+header .text-indigo-600 {
+    background: linear-gradient(to right, #4f46e5, #9333ea);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800; /* Bolder text to make the gradient visible */
+}
+
+/* Adjust gradient for dark mode readability */
+.dark header .text-indigo-600 {
+    background: linear-gradient(to right, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+
+/* --- Loading Overlay Styles (Keep in case you revert) --- */
 #loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.85); 
-    z-index: 9999; 
+    background: rgba(0, 0, 0, 0.85); /* Dark background */
+    z-index: 9999; /* On top of everything */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -283,16 +403,40 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     backdrop-filter: blur(5px);
 }
 
+.loader-content {
+    text-align: center;
+    color: white;
+}
+
+.loader-content p {
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    animation: pulseText 2s infinite;
+}
+
 .spinner {
     width: 60px;
     height: 60px;
     border: 5px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
-    border-top-color: #4f46e5; 
+    border-top-color: #4f46e5; /* Indigo-600 to match theme */
     animation: spin 1s ease-in-out infinite;
     margin: 0 auto;
 }
 
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseText {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+
+/* --- Chat History Skeleton Loader (New Feature) --- */
 .history-skeleton-item {
     padding: 0.75rem;
     margin-bottom: 0.5rem;
@@ -301,12 +445,23 @@ body.initial-view #welcome-message-container { flex-grow: 0; }
     animation: skeleton-pulse 1.5s infinite ease-in-out;
 }
 
+.dark .history-skeleton-item {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
 .skeleton-line {
     height: 10px;
-    background-color: #cbd5e1; 
+    background-color: #cbd5e1; /* Light gray */
     border-radius: 4px;
     margin-bottom: 6px;
 }
+
+.dark .skeleton-line {
+    background-color: #4b5563; /* Dark gray */
+}
+
+.skeleton-line.title { width: 70%; height: 12px; }
+.skeleton-line.subtitle { width: 40%; }
 
 @keyframes skeleton-pulse {
     0% { opacity: 0.5; }
