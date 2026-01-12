@@ -287,26 +287,30 @@ toggleHackingModeBtn.addEventListener('click', () => {
     if (isEthicalHackingMode) startNewChat(); 
 });
 
+/**
+ * UPDATED FUNCTION: Removes the background box and 
+ * shows plain text for Cyber Training Mode On.
+ */
 function updateHackingModeUI() {
+    const headerTitle = document.querySelector('header span');
     if (isEthicalHackingMode) {
-        // Remove standard classes and add success/active classes
-        toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white');
-        toggleHackingModeBtn.classList.add('bg-green-600', 'text-white');
+        toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Disable Teacher Mode";
         
-        const headerTitle = document.querySelector('header span');
+        // Removed green background and padding; displaying only text
         if (headerTitle) {
-            headerTitle.innerHTML = 'Sofia AI <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-2">Cyber Training</span>';
+            headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
         }
         
     } else {
-        // Restore standard classes
-        toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white');
-        toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white');
+        toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Enable Teacher Mode";
         
-        const headerTitle = document.querySelector('header span');
-        if (headerTitle) headerTitle.textContent = 'Sofia AI';
+        if (headerTitle) {
+            headerTitle.textContent = 'Sofia AI';
+        }
     }
 }
 
@@ -1144,6 +1148,7 @@ endVoiceBtn.addEventListener('click', endVoiceConversation);
 
 // --- Chat History Functions ---
 
+// Function to render skeleton loader in sidebar
 function showChatHistoryLoading() {
     chatHistoryContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
