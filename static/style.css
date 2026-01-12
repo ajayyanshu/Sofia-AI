@@ -468,3 +468,22 @@ header .text-indigo-600 {
     50% { opacity: 0.8; }
     100% { opacity: 0.5; }
 }
+
+/* ==================================================
+ * CYBER TRAINING BUTTON FIX
+ * ================================================== */
+/* Ensures the text is always white and centered when active */
+#toggle-hacking-mode-btn.bg-green-600 {
+    color: #ffffff !important;
+    background-color: #16a34a !important; /* Forces standard green-600 */
+}
+
+/* Forces white color for the status text inside the button */
+#toggle-hacking-mode-btn.bg-green-600 span {
+    color: #ffffff !important;
+}
+
+/* Hover state for the active button */
+#toggle-hacking-mode-btn.bg-green-600:hover {
+    background-color: #15803d !important;
+}
