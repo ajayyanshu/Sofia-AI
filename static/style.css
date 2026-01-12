@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 ::selection {
     background-color: #3b82f6;
@@ -468,66 +468,3 @@ header .text-indigo-600 {
     50% { opacity: 0.8; }
     100% { opacity: 0.5; }
 }
-
-/* ==================================================
- * WEB VULNERABILITY SCANNER ADDITIONS
- * ==================================================
- */
-
-/* Scanning Animation */
-.scanning-pulse {
-    animation: scan-line 2s linear infinite;
-    background: linear-gradient(to bottom, transparent, #f97316, transparent);
-    height: 2px;
-    width: 100%;
-    position: absolute;
-    left: 0;
-    z-index: 5;
-}
-
-@keyframes scan-line {
-    0% { top: 0%; }
-    100% { top: 100%; }
-}
-
-/* Specialized Vulnerability Badges */
-.vuln-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    display: inline-block;
-}
-
-.vuln-high { 
-    background-color: #fee2e2; 
-    color: #b91c1c; 
-}
-
-.vuln-med { 
-    background-color: #fef3c7; 
-    color: #92400e; 
-}
-
-.vuln-low { 
-    background-color: #d1fae5; 
-    color: #065f46; 
-}
-
-/* Dark mode overrides for badges */
-.dark .vuln-high { background-color: rgba(185, 28, 28, 0.2); color: #f87171; }
-.dark .vuln-med { background-color: rgba(146, 64, 14, 0.2); color: #fbbf24; }
-.dark .vuln-low { background-color: rgba(6, 95, 70, 0.2); color: #34d399; }
-
-/* Vulnerability Item Layout */
-.vuln-item {
-    border-left: 4px solid #e5e7eb;
-    padding-left: 1rem;
-    margin-bottom: 1rem;
-}
-
-.vuln-item.high { border-left-color: #ef4444; }
-.vuln-item.med { border-left-color: #f59e0b; }
-.vuln-item.low { border-left-color: #10b981; }
-
