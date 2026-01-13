@@ -82,9 +82,6 @@ const premiumSection = document.getElementById('premium-section');
 const razorpayBtn = document.getElementById('razorpay-btn');
 const usagePlanSection = document.getElementById('usage-plan-section');
 
-// Cyber Training Status Element
-const cyberTrainingStatus = document.getElementById('cyber-training-status') || createCyberTrainingStatusElement();
-
 // --- Global State ---
 const markdownConverter = new showdown.Converter();
 
@@ -100,6 +97,7 @@ let currentChatId = null;
 
 // Hacking Mode State
 let isEthicalHackingMode = false;
+let isTrainingModeOn = false;
 
 // Plan & Usage State
 let usageCounts = {
@@ -112,518 +110,6 @@ const usageLimits = {
 };
 let isPremium = false;
 let isAdmin = false;
-
-// Sofia AI Cyber Training Instance
-let sofiaAICyberTraining = null;
-
-// --- Helper Functions ---
-function createCyberTrainingStatusElement() {
-    const statusEl = document.createElement('div');
-    statusEl.id = 'cyber-training-status';
-    statusEl.className = 'cyber-training-status';
-    statusEl.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-family: 'Courier New', monospace;
-        font-size: 14px;
-        font-weight: bold;
-        z-index: 10000;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        opacity: 0;
-        transform: translateY(-20px);
-        transition: opacity 0.3s, transform 0.3s;
-    `;
-    document.body.appendChild(statusEl);
-    return statusEl;
-}
-
-// Sofia AI Cyber Training Module
-class SofiaAICyberTraining {
-    constructor() {
-        // State Management
-        this.isTeacherModeActive = false;
-        this.isTrainingModeOn = false;
-        this.isInitialized = false;
-        this.isBackgroundTaskRunning = false;
-        
-        // DOM Elements
-        this.statusElement = document.getElementById('cyber-training-status');
-        this.toggleButton = document.getElementById('teacher-mode-toggle') || 
-                           this.createToggleButton();
-        this.trainingContainer = document.createElement('div');
-        this.trainingContainer.className = 'cyber-training-container';
-        this.trainingContainer.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 9998;
-            overflow: hidden;
-        `;
-        document.body.appendChild(this.trainingContainer);
-        
-        this.debugPanel = document.createElement('div');
-        this.debugPanel.id = 'debug-panel';
-        this.debugPanel.style.cssText = `
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            background: rgba(0,0,0,0.8);
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 10px;
-            border-radius: 5px;
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 9997;
-            display: none;
-        `;
-        document.body.appendChild(this.debugPanel);
-        
-        // UI State
-        this.showTrainingText = false;
-        this.uiUpdateQueue = [];
-        this.renderPending = false;
-        
-        // Initialize
-        this.init();
-    }
-
-    /**
-     * Initialize the Cyber Training Module
-     */
-    init() {
-        this.setupEventListeners();
-        this.setupUIState();
-        this.isInitialized = true;
-        
-        console.log('✅ Sofia AI Cyber Training initialized');
-        this.logDebug('System initialized', 'success');
-    }
-
-    /**
-     * Create toggle button if not present
-     */
-    createToggleButton() {
-        const button = document.createElement('button');
-        button.id = 'teacher-mode-toggle';
-        button.className = 'cyber-training-toggle';
-        button.textContent = '🛡️ Enable Cyber Training';
-        button.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 9999;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            transition: all 0.3s;
-        `;
-        document.body.appendChild(button);
-        return button;
-    }
-
-    /**
-     * Setup event listeners
-     */
-    setupEventListeners() {
-        // Teacher mode toggle
-        this.toggleButton.addEventListener('click', () => {
-            this.toggleTeacherMode();
-        });
-
-        // Keyboard shortcut (Ctrl+Shift+T)
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.shiftKey && e.key === 'T') {
-                e.preventDefault();
-                this.toggleTeacherMode();
-            }
-        });
-    }
-
-    /**
-     * Setup initial UI state
-     */
-    setupUIState() {
-        // Initialize with proper state
-        this.isTeacherModeActive = false;
-        this.isTrainingModeOn = false;
-        this.showTrainingText = false;
-        
-        // Update button text
-        this.updateButtonState();
-        
-        // Ensure status element is hidden initially
-        this.statusElement.style.opacity = '0';
-        this.statusElement.style.transform = 'translateY(-20px)';
-        this.statusElement.textContent = '';
-    }
-
-    /**
-     * Toggle Teacher Mode
-     */
-    async toggleTeacherMode() {
-        try {
-            // Prevent multiple rapid toggles
-            if (this.renderPending) {
-                this.logDebug('UI update pending, please wait...', 'warning');
-                return;
-            }
-
-            const wasActive = this.isTeacherModeActive;
-            this.isTeacherModeActive = !this.isTeacherModeActive;
-            
-            this.logDebug(`Teacher Mode: ${this.isTeacherModeActive ? 'ENABLING' : 'DISABLING'}`, 'info');
-            
-            if (this.isTeacherModeActive) {
-                await this.enableTeacherMode();
-            } else {
-                this.disableTeacherMode();
-            }
-            
-            this.updateButtonState();
-            
-            // Update global state
-            isEthicalHackingMode = this.isTeacherModeActive;
-            
-            // Send system message
-            const statusMsg = isEthicalHackingMode 
-                ? "👨‍💻 **Ethical Hacking Teacher Mode Activated.**\nAsk me about penetration testing, network security, or defense mechanisms."
-                : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
-                
-            addMessage({ text: statusMsg, sender: 'system' });
-            
-            if (isEthicalHackingMode) {
-                startNewChat();
-                this.updateHeaderTitle(true);
-            } else {
-                this.updateHeaderTitle(false);
-            }
-            
-        } catch (error) {
-            console.error('Failed to toggle teacher mode:', error);
-            this.logDebug(`Toggle error: ${error.message}`, 'error');
-            
-            // Reset state on error
-            this.isTeacherModeActive = false;
-            this.isTrainingModeOn = false;
-            this.updateButtonState();
-            this.updateHeaderTitle(false);
-        }
-    }
-
-    /**
-     * Enable Teacher Mode
-     */
-    async enableTeacherMode() {
-        // Step 1: Show UI text immediately
-        this.showTrainingText = true;
-        this.updateStatusDisplay();
-        
-        // Step 2: Force a reflow to ensure CSS updates apply
-        this.forceReflow(this.statusElement);
-        
-        // Step 3: Start background task asynchronously
-        this.scheduleBackgroundTask();
-        
-        // Step 4: Update training mode state
-        this.isTrainingModeOn = true;
-        
-        // Step 5: Add visual effects
-        this.addVisualEffects();
-        
-        // Step 6: Log success
-        this.logDebug('Cyber Training Mode activated successfully', 'success');
-    }
-
-    /**
-     * Update status display with proper timing
-     */
-    updateStatusDisplay() {
-        // Clear any existing content
-        this.statusElement.textContent = '';
-        
-        // Set text content
-        this.statusElement.textContent = 'Cyber Training Mode On';
-        
-        // Apply styles with forced reflow
-        this.statusElement.style.display = 'block';
-        
-        // Force reflow
-        this.forceReflow(this.statusElement);
-        
-        // Animate in
-        requestAnimationFrame(() => {
-            this.statusElement.style.opacity = '1';
-            this.statusElement.style.transform = 'translateY(0)';
-            
-            // Schedule hide animation after 3 seconds
-            setTimeout(() => {
-                if (this.isTeacherModeActive) {
-                    // Keep visible but with reduced opacity
-                    this.statusElement.style.opacity = '0.7';
-                }
-            }, 3000);
-        });
-    }
-
-    /**
-     * Force a browser reflow
-     */
-    forceReflow(element) {
-        if (element) {
-            void element.offsetHeight;
-        }
-    }
-
-    /**
-     * Schedule background task with proper timing
-     */
-    scheduleBackgroundTask() {
-        // Clear any existing tasks
-        if (this.backgroundTaskTimeout) {
-            clearTimeout(this.backgroundTaskTimeout);
-        }
-        
-        // Schedule background task to run after UI update
-        this.backgroundTaskTimeout = setTimeout(() => {
-            this.startBackgroundTask();
-        }, 50); // Small delay to ensure UI updates first
-    }
-
-    /**
-     * Start background task
-     */
-    async startBackgroundTask() {
-        if (this.isBackgroundTaskRunning) return;
-        
-        this.isBackgroundTaskRunning = true;
-        this.logDebug('Starting background task...', 'info');
-        
-        try {
-            // Simulate background task
-            await this.simulateBackgroundProcessing();
-            
-            // Update task completion
-            this.logDebug('Background task completed', 'success');
-            
-            // Verify UI is still showing
-            if (this.isTeacherModeActive && !this.statusElement.textContent.includes('Cyber Training')) {
-                this.logDebug('UI text missing, restoring...', 'warning');
-                this.updateStatusDisplay();
-            }
-            
-        } catch (error) {
-            this.logDebug(`Background task failed: ${error.message}`, 'error');
-        } finally {
-            this.isBackgroundTaskRunning = false;
-        }
-    }
-
-    /**
-     * Simulate background processing
-     */
-    simulateBackgroundProcessing() {
-        return new Promise((resolve) => {
-            // Simulate processing time
-            setTimeout(() => {
-                // Add some console output for debugging
-                console.log('🔧 Cyber Training Background Task: Running security modules...');
-                console.log('🔧 Loading threat detection algorithms...');
-                console.log('🔧 Initializing AI guidance systems...');
-                resolve();
-            }, 1000);
-        });
-    }
-
-    /**
-     * Disable Teacher Mode
-     */
-    disableTeacherMode() {
-        // Step 1: Hide training text
-        this.showTrainingText = false;
-        
-        // Step 2: Animate out status
-        this.statusElement.style.opacity = '0';
-        this.statusElement.style.transform = 'translateY(-20px)';
-        
-        // Step 3: Clear after animation
-        setTimeout(() => {
-            this.statusElement.textContent = '';
-        }, 300);
-        
-        // Step 4: Stop background task
-        this.stopBackgroundTask();
-        
-        // Step 5: Update state
-        this.isTrainingModeOn = false;
-        
-        // Step 6: Remove visual effects
-        this.removeVisualEffects();
-        
-        this.logDebug('Cyber Training Mode deactivated', 'info');
-    }
-
-    /**
-     * Stop background task
-     */
-    stopBackgroundTask() {
-        if (this.backgroundTaskTimeout) {
-            clearTimeout(this.backgroundTaskTimeout);
-            this.backgroundTaskTimeout = null;
-        }
-        
-        this.isBackgroundTaskRunning = false;
-        
-        // Clean up any running processes
-        console.log('🛑 Cyber Training Background Task: Stopped');
-    }
-
-    /**
-     * Update button state
-     */
-    updateButtonState() {
-        if (this.isTeacherModeActive) {
-            this.toggleButton.textContent = '🛡️ Disable Cyber Training';
-            this.toggleButton.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
-        } else {
-            this.toggleButton.textContent = '🛡️ Enable Cyber Training';
-            this.toggleButton.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        }
-    }
-
-    /**
-     * Add visual effects
-     */
-    addVisualEffects() {
-        // Add cyberpunk style effects
-        const effect = document.createElement('div');
-        effect.className = 'cyber-training-effect';
-        effect.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(45deg, 
-                transparent 0%, 
-                rgba(102, 126, 234, 0.1) 50%, 
-                transparent 100%);
-            animation: cyberScan 2s linear infinite;
-            pointer-events: none;
-            z-index: 9998;
-        `;
-        
-        // Add animation style if not already present
-        if (!document.getElementById('cyber-animations')) {
-            const style = document.createElement('style');
-            style.id = 'cyber-animations';
-            style.textContent = `
-                @keyframes cyberScan {
-                    0% { transform: translateY(-100%); }
-                    100% { transform: translateY(100%); }
-                }
-                @keyframes cyberPulse {
-                    0%, 100% { opacity: 0.5; }
-                    50% { opacity: 1; }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-        
-        this.trainingContainer.appendChild(effect);
-        
-        // Remove after animation
-        setTimeout(() => {
-            if (effect.parentNode) {
-                effect.parentNode.removeChild(effect);
-            }
-        }, 2000);
-    }
-
-    /**
-     * Remove visual effects
-     */
-    removeVisualEffects() {
-        const effects = this.trainingContainer.querySelectorAll('.cyber-training-effect');
-        effects.forEach(effect => {
-            if (effect.parentNode) {
-                effect.parentNode.removeChild(effect);
-            }
-        });
-    }
-
-    /**
-     * Update header title
-     */
-    updateHeaderTitle(isActive) {
-        const headerTitle = document.querySelector('header span');
-        if (headerTitle) {
-            if (isActive) {
-                headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
-            } else {
-                headerTitle.textContent = 'Sofia AI';
-            }
-        }
-    }
-
-    /**
-     * Log debug messages
-     */
-    logDebug(message, type = 'info') {
-        const timestamp = new Date().toLocaleTimeString();
-        const color = {
-            'info': '#3498db',
-            'success': '#2ecc71',
-            'warning': '#f39c12',
-            'error': '#e74c3c'
-        }[type] || '#3498db';
-        
-        const logEntry = document.createElement('div');
-        logEntry.textContent = `[${timestamp}] ${message}`;
-        logEntry.style.color = color;
-        logEntry.style.marginBottom = '5px';
-        
-        this.debugPanel.appendChild(logEntry);
-        
-        // Show debug panel
-        this.debugPanel.style.display = 'block';
-        
-        // Auto-scroll to bottom
-        this.debugPanel.scrollTop = this.debugPanel.scrollHeight;
-        
-        // Console output
-        console.log(`[Sofia AI Debug] ${message}`);
-    }
-
-    /**
-     * Get current state
-     */
-    getState() {
-        return {
-            teacherModeActive: this.isTeacherModeActive,
-            trainingModeOn: this.isTrainingModeOn,
-            backgroundTaskRunning: this.isBackgroundTaskRunning,
-            showTrainingText: this.showTrainingText,
-            uiUpdatePending: this.renderPending
-        };
-    }
-}
 
 // --- Sidebar & Temp Chat Logic ---
 function openSidebar() {
@@ -782,16 +268,64 @@ contactModal.addEventListener('click', (e) => {
 // --- Ethical Hacking Mode Logic ---
 cyberTrainingBtn.addEventListener('click', () => {
     if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
-    
-    // Toggle directly without modal
-    if (sofiaAICyberTraining) {
-        sofiaAICyberTraining.toggleTeacherMode();
-    } else {
-        // Initialize if not already
-        sofiaAICyberTraining = new SofiaAICyberTraining();
-        sofiaAICyberTraining.toggleTeacherMode();
-    }
+    cyberModal.classList.remove('hidden');
+    cyberModal.classList.add('flex');
 });
+
+closeCyberModalBtn.addEventListener('click', () => {
+    cyberModal.classList.add('hidden');
+    cyberModal.classList.remove('flex');
+});
+
+toggleHackingModeBtn.addEventListener('click', () => {
+    isEthicalHackingMode = !isEthicalHackingMode;
+    isTrainingModeOn = isEthicalHackingMode;
+    
+    // Force update UI immediately
+    updateHackingModeUI();
+    
+    // Close modal
+    cyberModal.classList.add('hidden');
+    cyberModal.classList.remove('flex');
+    
+    const statusMsg = isEthicalHackingMode 
+        ? "👨‍💻 **Ethical Hacking Teacher Mode Activated.**\nAsk me about penetration testing, network security, or defense mechanisms."
+        : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
+        
+    addMessage({ text: statusMsg, sender: 'system' });
+    
+    if (isEthicalHackingMode) startNewChat(); 
+});
+
+function updateHackingModeUI() {
+    const headerTitle = document.querySelector('header span');
+    
+    // Force reflow to ensure UI updates properly
+    if (headerTitle) {
+        void headerTitle.offsetHeight;
+    }
+    
+    if (isEthicalHackingMode) {
+        toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
+        hackingModeStatusText.textContent = "Disable Teacher Mode";
+        
+        // Update header title with Cyber Training Mode text
+        if (headerTitle) {
+            headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
+        }
+        
+    } else {
+        toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
+        toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
+        hackingModeStatusText.textContent = "Enable Teacher Mode";
+        
+        // Reset header title
+        if (headerTitle) {
+            headerTitle.textContent = 'Sofia AI';
+        }
+    }
+}
 
 // --- Language and Theme Logic ---
 let currentLang = 'en';
@@ -1422,7 +956,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM5 11a1 1 0 100 2h4a1 1 0 100-2H5z"/></svg>
                 </button>
                 <button class="action-btn like-btn" title="Good response">
-                   <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.821 2.311l-1.055 1.636a1 1 0 00-1.423 .23z"/></svg>
+                   <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.821 2.311l-1.055 1.636a1 1 0 00-1.423 .23z"/></svg>
                 </button>
                 <button class="action-btn dislike-btn" title="Bad response">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0011.057 2H5.642a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.821-2.311l1.055-1.636a1 1 0 001.423 .23z"/></svg>
@@ -2325,25 +1859,6 @@ function initializeApp() {
             }
         }
     });
-
-    // Initialize Sofia AI Cyber Training
-    sofiaAICyberTraining = new SofiaAICyberTraining();
-    
-    // Expose to global scope for debugging
-    window.SofiaAI = {
-        toggleTraining: () => sofiaAICyberTraining.toggleTeacherMode(),
-        getStatus: () => sofiaAICyberTraining.getState(),
-        enableTraining: () => {
-            if (!sofiaAICyberTraining.getState().teacherModeActive) {
-                sofiaAICyberTraining.toggleTeacherMode();
-            }
-        },
-        disableTraining: () => {
-            if (sofiaAICyberTraining.getState().teacherModeActive) {
-                sofiaAICyberTraining.toggleTeacherMode();
-            }
-        }
-    };
 }
 
 function typeWriterEffect(elementId, text, speed = 40) {
