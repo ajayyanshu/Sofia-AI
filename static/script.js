@@ -82,7 +82,6 @@ const premiumSection = document.getElementById('premium-section');
 const razorpayBtn = document.getElementById('razorpay-btn');
 const usagePlanSection = document.getElementById('usage-plan-section');
 
-
 // --- Global State ---
 const markdownConverter = new showdown.Converter();
 
@@ -396,7 +395,7 @@ const translations = {
         logOut: 'लॉग आउट', 
         welcome: 'मैं आपकी क्या मदद कर सकता हूँ?', 
         addFiles: 'तस्वीरें और फ़ाइलें जोड़ें', 
-        askAnything: 'कुछ भी पूछें', 
+        askAnything: 'कुछ भी पूँछें', 
         search: 'खोजें', 
         sofiaTitle: 'सोफिया एआई',
         uploadCode: 'कोड अपलोड करें',
@@ -1062,7 +1061,7 @@ function activateWebSearch() {
     const indicator = document.createElement('div');
     indicator.className = 'mode-indicator ml-2';
     indicator.innerHTML = `
-        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 48 48"><path fill="#4CAF50" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FFC107" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#FF3D00" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.902,35.636,44,29.598,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 48 48"><path fill="#4CAF50" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FFC107" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#FF3D00" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.902,35.636,44,29.598,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
         <span>Web Search Active</span>
         <button id="close-search-mode-btn" class="ml-2 p-1 rounded-full hover:bg-indigo-200 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-indigo-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -1482,6 +1481,9 @@ function loadChat(chatId) {
 
     currentChat.forEach(message => addMessage(message));
     renderChatHistorySidebar();
+    
+    // FIX: Update hacking mode UI when chat loads
+    updateHackingModeUI();
 }
 
 function startNewChat() {
@@ -1501,6 +1503,9 @@ function startNewChat() {
     clearAllFiles();
     messageInput.value = '';
     renderChatHistorySidebar();
+    
+    // FIX: Update hacking mode UI when starting new chat
+    updateHackingModeUI();
     
     const welcomeH1 = welcomeMessageContainer.querySelector('h1');
     if (welcomeH1) {
@@ -1794,6 +1799,9 @@ function initializeApp() {
     loadChatsFromDB();
     
     fetchAndDisplayUserInfo();
+    
+    // FIX: Initialize hacking mode UI
+    updateHackingModeUI();
     
     const welcomeH1 = document.querySelector('#welcome-message-container h1');
     if (welcomeH1) {
