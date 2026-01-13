@@ -274,7 +274,12 @@ closeCyberModalBtn.addEventListener('click', () => {
 
 toggleHackingModeBtn.addEventListener('click', () => {
     isEthicalHackingMode = !isEthicalHackingMode;
+    
+    // FIX: Start chat first so UI update isn't overwritten
+    if (isEthicalHackingMode) startNewChat(); 
+    
     updateHackingModeUI();
+    
     cyberModal.classList.add('hidden');
     cyberModal.classList.remove('flex');
     
@@ -283,13 +288,10 @@ toggleHackingModeBtn.addEventListener('click', () => {
         : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
         
     addMessage({ text: statusMsg, sender: 'system' });
-    
-    if (isEthicalHackingMode) startNewChat(); 
 });
 
 /**
- * UPDATED FUNCTION: Removes the background box and 
- * shows plain text for Cyber Training Mode On.
+ * UPDATED FUNCTION: Shows plain text "Cyber Training Mode On" in header
  */
 function updateHackingModeUI() {
     const headerTitle = document.querySelector('header span');
@@ -298,7 +300,7 @@ function updateHackingModeUI() {
         toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Disable Teacher Mode";
         
-        // Removed green background and padding; displaying only text
+        // Displays only text without the background box
         if (headerTitle) {
             headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
         }
@@ -319,168 +321,70 @@ function updateHackingModeUI() {
 let currentLang = 'en';
 const translations = {
     'en': { 
-        settings: 'Settings', 
-        general: 'General', 
-        profile: 'Profile', 
-        theme: 'Theme', 
-        light: 'Light', 
-        dark: 'Dark', 
-        system: 'System', 
-        language: 'Language', 
-        username: 'Username', 
-        newChat: 'New chat', 
-        library: 'Library', 
-        chatHistory: 'Chat History', 
-        chatHistoryEmpty: 'Your chat history will appear here.', 
-        logOut: 'Log out', 
-        welcome: 'What can I help with?', 
-        addFiles: 'Add photos & file', 
-        askAnything: 'Ask anything', 
-        search: 'Search', 
-        sofiaTitle: 'Sofia AI',
-        uploadCode: 'Upload code',
-        usagePlan: 'Usage & Plan',
-        upgradePlan: 'Upgrade your plan',
-        cyberTraining: 'Cyber Training',
-        upgrade: 'Upgrade',
-        verify: 'Verify',
-        verified: 'Verified',
-        delete: 'Delete',
-        emailVerification: 'Email Verification',
-        logoutAllDevices: 'Log out of all devices',
-        deleteAccountLabel: 'Delete account',
-        themeLabel: 'Theme',
-        emailNotVerifiedMsg: 'Your email is not verified.',
-        emailVerifiedMsg: 'Your email has been verified.',
-        feature: 'Feature',
-        dailyTextMessages: 'Text Messages',
-        voiceCommands: 'Voice-to-Voice Commands',
-        readDocs: 'Read Image/PDF/Docs',
-        webSearchLimit: 'Web Search',
-        saveHistory: 'Save & Search History',
-        messages: 'messages',
-        unlimited: 'Unlimited',
-        perDay: 'per day',
-        perMonth: '1 per month (5 pages)',
-        yesForever: '✔ Yes, Forever',
-        msgsUsedMonth: 'messages used this month',
-        freePlanTitle: 'Free Plan',
-        premiumPlanTitle: 'Sofia AI Pro',
-        upgradeBtnText: 'Upgrade for ₹49/month', 
-        used: 'Used',
-        contactUs: 'Contact Us',
-        email: 'Email',
-        telegram: 'Telegram',
+        settings: 'Settings', general: 'General', profile: 'Profile', theme: 'Theme', 
+        light: 'Light', dark: 'Dark', system: 'System', language: 'Language', 
+        username: 'Username', newChat: 'New chat', library: 'Library', 
+        chatHistory: 'Chat History', chatHistoryEmpty: 'Your chat history will appear here.', 
+        logOut: 'Log out', welcome: 'What can I help with?', addFiles: 'Add photos & file', 
+        askAnything: 'Ask anything', search: 'Search', sofiaTitle: 'Sofia AI',
+        uploadCode: 'Upload code', usagePlan: 'Usage & Plan', upgradePlan: 'Upgrade your plan',
+        cyberTraining: 'Cyber Training', upgrade: 'Upgrade', verify: 'Verify',
+        verified: 'Verified', delete: 'Delete', emailVerification: 'Email Verification',
+        logoutAllDevices: 'Log out of all devices', deleteAccountLabel: 'Delete account',
+        themeLabel: 'Theme', emailNotVerifiedMsg: 'Your email is not verified.',
+        emailVerifiedMsg: 'Your email has been verified.', feature: 'Feature',
+        dailyTextMessages: 'Text Messages', voiceCommands: 'Voice-to-Voice Commands',
+        readDocs: 'Read Image/PDF/Docs', webSearchLimit: 'Web Search',
+        saveHistory: 'Save & Search History', messages: 'messages', unlimited: 'Unlimited',
+        perDay: 'per day', perMonth: '1 per month (5 pages)', yesForever: '✔ Yes, Forever',
+        msgsUsedMonth: 'messages used this month', freePlanTitle: 'Free Plan',
+        premiumPlanTitle: 'Sofia AI Pro', upgradeBtnText: 'Upgrade for ₹49/month', 
+        used: 'Used', contactUs: 'Contact Us', email: 'Email', telegram: 'Telegram',
         contactMessage: "We'd love to hear from you!"
     },
     'hi': { 
-        settings: 'सेटिंग्स', 
-        general: 'सामान्य', 
-        profile: 'प्रोफ़ाइल', 
-        theme: 'थीम', 
-        light: 'लाइट', 
-        dark: 'डार्क', 
-        system: 'सिस्टम', 
-        language: 'भाषा', 
-        username: 'उपयोगकर्ता नाम', 
-        newChat: 'नई चैट', 
-        library: 'लाइब्रेरी', 
-        chatHistory: 'चैट इतिहास', 
-        chatHistoryEmpty: 'आपका चैट इतिहास यहाँ दिखाई देगा।', 
-        logOut: 'लॉग आउट', 
-        welcome: 'मैं आपकी क्या मदद कर सकता हूँ?', 
-        addFiles: 'तस्वीरें और फ़ाइलें जोड़ें', 
-        askAnything: 'कुछ भी पूछें', 
-        search: 'खोजें', 
-        sofiaTitle: 'सोफिया एआई',
-        uploadCode: 'कोड अपलोड करें',
-        usagePlan: 'उपयोग और योजना',
-        upgradePlan: 'अपना प्लान अपग्रेड करें',
-        cyberTraining: 'साइबर प्रशिक्षण',
-        upgrade: 'अपग्रेड करें',
-        verify: 'सत्यापित करें',
-        verified: 'सत्यापित',
-        delete: 'हटाएं',
-        emailVerification: 'ईमेल सत्यापन',
-        logoutAllDevices: 'सभी उपकरणों से लॉग आउट करें',
-        deleteAccountLabel: 'खाता हटाएं',
-        themeLabel: 'थीम',
-        emailNotVerifiedMsg: 'आपका ईमेल सत्यापित नहीं है।',
-        emailVerifiedMsg: 'आपका ईमेल सत्यापित हो गया है।',
-        feature: 'सुविधा',
-        dailyTextMessages: 'टेक्स्ट संदेश',
-        voiceCommands: 'वॉयस-टू-वॉयस कमांड',
-        readDocs: 'छवि/पीडीएफ/दस्तावेज़ पढ़ें',
-        webSearchLimit: 'वेब खोज',
-        saveHistory: 'इतिहास सहेजें और खोजें',
-        messages: 'संदेश',
-        unlimited: 'असीमित',
-        perDay: 'प्रति दिन',
-        perMonth: '1 प्रति माह (5 पृष्ठ)',
-        yesForever: '✔ हाँ, हमेशा के लिए',
-        msgsUsedMonth: 'इस महीने उपयोग किए गए संदेश',
-        freePlanTitle: 'फ्री प्लान',
-        premiumPlanTitle: 'सोफिया एआई प्रो',
-        upgradeBtnText: '₹49/माह में अपग्रेड करें', 
-        used: 'उपयोग किया गया',
-        contactUs: 'हमसे संपर्क करें',
-        email: 'ईमेल',
-        telegram: 'टेलीग्राम',
+        settings: 'सेटिंग्स', general: 'सामान्य', profile: 'प्रोफ़ाइल', theme: 'थीम', 
+        light: 'लाइट', dark: 'डार्क', system: 'सिस्टम', language: 'भाषा', 
+        username: 'उपयोगकर्ता नाम', newChat: 'नई चैट', library: 'लाइब्रेरी', 
+        chatHistory: 'चैट इतिहास', chatHistoryEmpty: 'आपका चैट इतिहास यहाँ दिखाई देगा।', 
+        logOut: 'लॉग आउट', welcome: 'मैं आपकी क्या मदद कर सकता हूँ?', 
+        addFiles: 'तस्वीरें और फ़ाइलें जोड़ें', askAnything: 'कुछ भी पूछें', search: 'खोजें', 
+        sofiaTitle: 'सोफिया एआई', uploadCode: 'कोड अपलोड करें', usagePlan: 'उपयोग और योजना',
+        upgradePlan: 'अपना प्लान अपग्रेड करें', cyberTraining: 'साइबर प्रशिक्षण', upgrade: 'अपग्रेड करें',
+        verify: 'सत्यापित करें', verified: 'सत्यापित', delete: 'हटाएं',
+        emailVerification: 'ईमेल सत्यापन', logoutAllDevices: 'सभी उपकरणों से लॉग आउट करें',
+        deleteAccountLabel: 'खाता हटाएं', themeLabel: 'थीम',
+        emailNotVerifiedMsg: 'आपका ईमेल सत्यापित नहीं है।', emailVerifiedMsg: 'आपका ईमेल सत्यापित हो गया है।',
+        feature: 'सुविधा', dailyTextMessages: 'टेक्स्ट संदेश', voiceCommands: 'वॉयस-टू-वॉयस कमांड',
+        readDocs: 'छवि/पीडीएफ/दस्तावेज़ पढ़ें', webSearchLimit: 'वेब खोज',
+        saveHistory: 'इतिहास सहेजें और खोजें', messages: 'संदेश', unlimited: 'असीमित',
+        perDay: 'प्रति दिन', perMonth: '1 प्रति माह (5 पृष्ठ)', yesForever: '✔ हाँ, हमेशा के लिए',
+        msgsUsedMonth: 'इस महीने उपयोग किए गए संदेश', freePlanTitle: 'फ्री प्लान',
+        premiumPlanTitle: 'सोफिया एआई प्रो', upgradeBtnText: '₹49/माह में अपग्रेड करें', 
+        used: 'उपयोग किया गया', contactUs: 'हमसे संपर्क करें', email: 'ईमेल', telegram: 'टेलीग्राम',
         contactMessage: 'हमें आपसे जानकर खुशी होगी!'
     },
     'bn': { 
-        settings: 'সেটিংস', 
-        general: 'সাধারণ', 
-        profile: 'প্রোফাইল', 
-        theme: 'থিম', 
-        light: 'লাইট', 
-        dark: 'ডার্ক', 
-        system: 'সিস্টেম', 
-        language: 'ভাষা', 
-        username: 'ব্যবহারকারীর নাম', 
-        newChat: 'নতুন চ্যাট', 
-        library: 'লাইব্রেরি', 
-        chatHistory: 'চ্যাট ইতিহাস', 
-        chatHistoryEmpty: 'আপনার চ্যাট ইতিহাস এখানে প্রদর্শিত হবে।', 
-        logOut: 'লগ আউট', 
-        welcome: 'আমি আপনাকে কীভাবে সাহায্য করতে পারি?', 
-        addFiles: 'ছবি এবং ফাইল যোগ করুন', 
-        askAnything: 'যা খুশি জিজ্ঞাসা করুন', 
-        search: 'অনুসন্ধান', 
-        sofiaTitle: 'সোফিয়া এআই',
-        uploadCode: 'কোড আপলোড করুন',
-        usagePlan: 'ব্যবহার এবং পরিকল্পনা',
-        upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
-        cyberTraining: 'সাইবার প্রশিক্ষণ',
-        upgrade: 'আপগ্রেড করুন',
-        verify: 'যাচাই করুন',
-        verified: 'যাচাইকৃত',
-        delete: 'মুছুন',
-        emailVerification: 'ইমেল যাচাইকরণ',
-        logoutAllDevices: 'সমস্ত ডিভাইস থেকে লগ আউট করুন',
-        deleteAccountLabel: 'অ্যাকাউন্ট মুছুন',
-        themeLabel: 'থিম',
-        emailNotVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়নি।',
-        emailVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়েছে।',
-        feature: 'বৈশিষ্ট্য',
-        dailyTextMessages: 'টেক্সট বার্তা',
-        voiceCommands: 'ভয়েস-টু-ভয়েস কমান্ড',
-        readDocs: 'ছবি/পিডিএফ/ডক্স পড়ুন',
-        webSearchLimit: 'ওয়েব অনুসন্ধান',
-        saveHistory: 'ইতিহাস সংরক্ষণ ও অনুসন্ধান',
-        messages: 'বার্তা',
-        unlimited: 'সীমাহীন',
-        perDay: 'প্রতিদিন',
-        perMonth: 'মাসে ১টি (৫ পৃষ্ঠা)',
-        yesForever: '✔ হ্যাঁ, চিরকাল',
-        msgsUsedMonth: 'এই মাসে ব্যবহৃত বার্তা',
-        freePlanTitle: 'ফ্রি প্ল্যান',
-        premiumPlanTitle: 'সোফিয়া এআই প্রো',
-        upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', 
-        used: 'ব্যবহৃত',
-        contactUs: 'আমাদের সাথে যোগাযোগ করুন',
-        email: 'ইমেল',
-        telegram: 'টেলিগ্রাম',
+        settings: 'সেটিংস', general: 'সাধারণ', profile: 'প্রোফাইল', theme: 'থিম', 
+        light: 'লাইট', dark: 'ডার্ক', system: 'সিস্টেম', language: 'ভাষা', 
+        username: 'ব্যবহারকারীর নাম', newChat: 'নতুন চ্যাট', library: 'লাইব্রেরি', 
+        chatHistory: 'চ্যাট ইতিহাস', chatHistoryEmpty: 'আপনার চ্যাট ইতিহাস এখানে প্রদর্শিত হবে।', 
+        logOut: 'লগ আউট', welcome: 'আমি আপনাকে কীভাবে সাহায্য করতে পারি?', 
+        addFiles: 'ছবি এবং ফাইল যোগ করুন', askAnything: 'যা খুশি জিজ্ঞাসা করুন', 
+        search: 'অনুসন্ধান', sofiaTitle: 'সোফিয়া এআই', uploadCode: 'কোড আপলোড করুন', 
+        usagePlan: 'ব্যবহার এবং পরিকল্পনা', upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
+        cyberTraining: 'সাইবার প্রশিক্ষণ', upgrade: 'আপগ্রেড করুন', verify: 'যাচাই করুন',
+        verified: 'যাচাইকৃত', delete: 'মুছুন', email verification: 'ইমেল যাচাইকরণ',
+        logoutAllDevices: 'সমস্ত ডিভাইস থেকে লগ আউট করুন', deleteAccountLabel: 'অ্যাকাউন্ট মুছুন',
+        themeLabel: 'থিম', emailNotVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়নি।',
+        emailVerifiedMsg: 'আপনার ইমেল যাচাই করা হয়েছে।', feature: 'বৈশিষ্ট্য',
+        dailyTextMessages: 'টেক্সট বার্তা', voiceCommands: 'ভয়েস-টু-ভয়েস কমান্ড',
+        readDocs: 'ছবি/পিডিএফ/ডক্স পড়ুন', webSearchLimit: 'ওয়েব অনুসন্ধান',
+        saveHistory: 'ইতিহাস সংরক্ষণ ও অনুসন্ধান', messages: 'বার্তা', unlimited: 'সীমাহীন',
+        perDay: 'প্রতিদিন', perMonth: 'মাসে ১টি (৫ পৃষ্ঠা)', yesForever: '✔ হ্যাঁ, চিরকাল',
+        msgsUsedMonth: 'এই মাসে ব্যবহৃত বার্তা', freePlanTitle: 'ফ্রি প্ল্যান',
+        premiumPlanTitle: 'সোফিয়া এআই প্রো', upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', 
+        used: 'ব্যবহৃত', contactUs: 'আমাদের সাথে যোগাযোগ করুন', email: 'ইমেল', telegram: 'টেলিগ্রাম',
         contactMessage: 'আমরা আপনার কথা শুনতে চাই!'
     }
 };
@@ -1148,7 +1052,6 @@ endVoiceBtn.addEventListener('click', endVoiceConversation);
 
 // --- Chat History Functions ---
 
-// Function to render skeleton loader in sidebar
 function showChatHistoryLoading() {
     chatHistoryContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
@@ -1391,6 +1294,9 @@ function startNewChat() {
     messageInput.value = '';
     renderChatHistorySidebar();
     
+    // FIX: Ensure header stays updated when starting a new chat session
+    updateHackingModeUI();
+
     const welcomeH1 = welcomeMessageContainer.querySelector('h1');
     if (welcomeH1) {
         welcomeH1.id = 'welcome-text-animated';
