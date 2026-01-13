@@ -30,6 +30,7 @@ const chatHistoryContainer = document.getElementById('chat-history-container');
 const searchHistoryInput = document.getElementById('search-history-input');
 const tempChatBanner = document.getElementById('temp-chat-banner');
 const saveToDbBtn = document.getElementById('save-to-db-btn');
+const clearAllFilesBtn = document.getElementById('clear-all-files-btn');
 
 // Ethical Hacking Mode Elements
 const cyberTrainingBtn = document.getElementById('cyber-training-btn');
@@ -84,9 +85,9 @@ const usagePlanSection = document.getElementById('usage-plan-section');
 
 // --- Global State ---
 const markdownConverter = new showdown.Converter();
-let fileData = null;
-let fileType = null;
-let fileInfoForDisplay = null;
+
+// CHANGED: Multiple files storage instead of single file
+let filesData = []; // Array of objects {id, data, type, name}
 let currentMode = null; 
 let recognition;
 let isVoiceConversationActive = false;
@@ -149,11 +150,13 @@ messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.sh
 // --- FILE UPLOAD LISTENERS ---
 uploadFileBtn.addEventListener('click', () => {
     fileInput.accept = "image/*,.pdf,.doc,.docx";
+    fileInput.multiple = true;
     fileInput.click();
 });
 
 uploadCodeBtn.addEventListener('click', () => {
     fileInput.accept = ".txt,.py,.js,.java,.c,.cpp,.h,.html,.css,.json,.md,.sh,.rb,.go,.php,.swift,.kt";
+    fileInput.multiple = true;
     fileInput.click();
 });
 
@@ -184,7 +187,7 @@ messageInput.addEventListener('input', () => {
     messageInput.style.height = `${newHeight}px`;
     
     const hasText = messageInput.value.trim() !== '';
-    const shouldShowSend = hasText || fileData;
+    const shouldShowSend = hasText || filesData.length > 0;
     
     sendBtn.classList.toggle('hidden', !shouldShowSend);
     micBtn.classList.toggle('hidden', hasText);
@@ -192,6 +195,9 @@ messageInput.addEventListener('input', () => {
 });
 
 saveToDbBtn.addEventListener('click', saveTemporaryChatToDB);
+
+// Clear all files button event listener
+clearAllFilesBtn.addEventListener('click', clearAllFiles);
 
 // --- Settings Modal Logic ---
 function openSettingsModal() { settingsModal.classList.remove('hidden'); settingsModal.classList.add('flex'); }
@@ -639,57 +645,139 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', eve
 });
 
 // --- Core Functions ---
+
+// UPDATED: Handle multiple file selection
 function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    const selectedFiles = event.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
 
     addMenu.classList.add('hidden');
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        fileData = e.target.result.split(',')[1];
-        fileType = file.type;
-        fileInfoForDisplay = { name: file.name, type: file.type, dataUrl: e.target.result };
-        showFilePreview(file);
-        sendBtn.classList.remove('hidden');
-    };
-    reader.onerror = function(error) {
-        console.error("Error reading file:", error);
-        addMessage({ text: "Sorry, there was an error reading your file.", sender: 'system'});
-    };
-    reader.readAsDataURL(file);
+    
+    // Process each file
+    for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const reader = new FileReader();
+        
+        reader.onload = (function(file) {
+            return function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                const fileId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                // Add to filesData array
+                filesData.push({
+                    id: fileId,
+                    data: base64Data,
+                    type: file.type,
+                    name: file.name
+                });
+                
+                // Show preview for this file
+                showFilePreview(file, fileId);
+                
+                // Show send button if we have any files
+                if (filesData.length > 0) {
+                    sendBtn.classList.remove('hidden');
+                    micBtn.classList.add('hidden');
+                    voiceModeBtn.classList.add('hidden');
+                }
+                
+                // Show clear all button if we have files
+                if (filesData.length > 0) {
+                    clearAllFilesBtn.classList.remove('hidden');
+                }
+            };
+        })(file);
+        
+        reader.onerror = function(error) {
+            console.error("Error reading file:", error);
+            addMessage({ text: "Sorry, there was an error reading your file.", sender: 'system'});
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
-function showFilePreview(file) {
-    filePreviewContainer.innerHTML = '';
+// UPDATED: Show file preview with unique ID
+function showFilePreview(file, fileId) {
     const previewItem = document.createElement('div');
     previewItem.className = 'preview-item';
+    previewItem.dataset.fileId = fileId;
     
     if (file.type.startsWith('image/')) {
-         previewItem.classList.add('image-preview');
-         previewItem.innerHTML = `<img src="${fileInfoForDisplay.dataUrl}" alt="${file.name}"><button class="remove-preview-btn" onclick="removeFile()">&times;</button>`;
+        previewItem.classList.add('image-preview');
+        previewItem.innerHTML = `
+            <img src="data:${file.type};base64,${filesData.find(f => f.id === fileId)?.data}" alt="${file.name}">
+            <button class="remove-preview-btn" data-fileid="${fileId}" title="Remove file">&times;</button>
+            <span class="file-name-tag">${file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name}</span>
+        `;
     } else {
-         previewItem.classList.add('doc-preview');
-         previewItem.innerHTML = `<div class="file-icon"><svg class="h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div><span class="file-name">${file.name}</span><button class="remove-preview-btn" onclick="removeFile()">&times;</button>`;
+        previewItem.classList.add('doc-preview');
+        previewItem.innerHTML = `
+            <div class="file-icon">
+                <svg class="h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <span class="file-name">${file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}</span>
+            <button class="remove-preview-btn" data-fileid="${fileId}" title="Remove file">&times;</button>
+        `;
     }
+    
+    // Add click event to remove button
+    const removeBtn = previewItem.querySelector('.remove-preview-btn');
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(fileId);
+    });
+    
     filePreviewContainer.appendChild(previewItem);
 }
 
-window.removeFile = function() {
-    fileData = null;
-    fileType = null;
-    fileInfoForDisplay = null;
-    fileInput.value = '';
+// UPDATED: Remove specific file by ID
+window.removeFile = function(fileId) {
+    // Remove from filesData array
+    const fileIndex = filesData.findIndex(f => f.id === fileId);
+    if (fileIndex > -1) {
+        filesData.splice(fileIndex, 1);
+    }
+    
+    // Remove from preview
+    const previewItem = filePreviewContainer.querySelector(`[data-file-id="${fileId}"]`);
+    if (previewItem) {
+        previewItem.remove();
+    }
+    
+    // Check if all files are removed
+    if (filesData.length === 0 && messageInput.value.trim() === '') {
+        sendBtn.classList.add('hidden');
+        micBtn.classList.remove('hidden');
+        voiceModeBtn.classList.remove('hidden');
+        fileInput.value = '';
+        clearAllFilesBtn.classList.add('hidden');
+    } else {
+        // Update clear all button visibility
+        clearAllFilesBtn.classList.toggle('hidden', filesData.length === 0);
+    }
+}
+
+// NEW: Clear all files function
+function clearAllFiles() {
+    filesData = [];
     filePreviewContainer.innerHTML = '';
+    fileInput.value = '';
+    
     if (messageInput.value.trim() === '') {
         sendBtn.classList.add('hidden');
         micBtn.classList.remove('hidden');
         voiceModeBtn.classList.remove('hidden');
     }
+    
+    clearAllFilesBtn.classList.add('hidden');
 }
 
+// UPDATED: Send message with multiple files
 async function sendMessage() {
     const text = messageInput.value.trim();
-    if (!text && !fileData) return;
+    if (!text && filesData.length === 0) return;
     
     if (!isPremium && !isAdmin && usageCounts.messages >= usageLimits.messages) {
         alert("You've reached your monthly message limit. Please upgrade to continue.");
@@ -705,10 +793,17 @@ async function sendMessage() {
         chatContainer.classList.remove('hidden');
     }
     
+    // Create file info array for display
+    const fileInfoArray = filesData.map(file => ({
+        name: file.name,
+        type: file.type,
+        dataUrl: `data:${file.type};base64,${file.data}`
+    }));
+    
     const userMessage = {
         text,
         sender: 'user',
-        fileInfo: fileInfoForDisplay,
+        fileInfo: fileInfoArray.length > 0 ? fileInfoArray : null,
         mode: currentMode
     };
     addMessage(userMessage);
@@ -717,14 +812,18 @@ async function sendMessage() {
     messageInput.value = '';
     messageInput.dispatchEvent(new Event('input'));
 
-    if (fileInfoForDisplay) {
-        uploadFileToLibrary(fileInfoForDisplay);
+    // Upload each file to library
+    if (fileInfoArray.length > 0) {
+        fileInfoArray.forEach(fileInfo => {
+            uploadFileToLibrary(fileInfo);
+        });
     }
     
     const modeForThisMessage = currentMode;
-    const currentFileData = fileData;
-    const currentFileType = fileType;
-    removeFile();
+    const currentFilesData = [...filesData]; // Copy the array
+    
+    // Clear files after sending
+    clearAllFiles();
     
     if (modeForThisMessage !== 'voice_mode') {
         deactivateWebSearch();
@@ -743,13 +842,13 @@ async function sendMessage() {
     }
 
     try {
+        // UPDATED: Send array of files to server
         const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text: textToSend, 
-                fileData: currentFileData, 
-                fileType: currentFileType,
+                filesData: currentFilesData, // Send array of files
                 isTemporary: isTemporaryChatActive,
                 mode: modeForThisMessage 
             })
@@ -801,16 +900,26 @@ async function sendMessage() {
     }
 }
 
+// UPDATED: Add message with multiple files display
 function addMessage({text, sender, fileInfo = null, mode = null}) {
      if (sender === 'user') {
         const messageBubble = document.createElement('div');
         let fileHtml = '';
-        if (fileInfo) {
-            if (fileInfo.type.startsWith('image/')) {
-                 fileHtml = `<img src="${fileInfoForDisplay.dataUrl}" alt="User upload" class="rounded-lg mb-2 max-w-xs">`;
-            } else {
-                fileHtml = `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2"><svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><span class="text-sm text-blue-800">${fileInfo.name}</span></div>`;
-            }
+        
+        // Handle multiple files
+        if (fileInfo && Array.isArray(fileInfo) && fileInfo.length > 0) {
+            fileInfo.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    fileHtml += `<img src="${file.dataUrl}" alt="User upload" class="rounded-lg mb-2 max-w-xs">`;
+                } else {
+                    fileHtml += `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2">
+                        <svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span class="text-sm text-blue-800">${file.name}</span>
+                    </div>`;
+                }
+            });
         }
         
         let modeHtml = '';
@@ -847,7 +956,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0011.057 2H5.642a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.821-2.311l1.055-1.636a1 1 0 001.423 .23z"/></svg>
                 </button>
                 <button class="action-btn speak-btn" title="Speak">
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" /></svg>
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828a1 1 0 010-1.415z" clip-rule="evenodd" /></svg>
                 </button>
             </div>
         `;
@@ -1083,9 +1192,11 @@ function startListening() {
                 messageInput.value = final_transcript || interim_transcript;
                 messageInput.style.height = 'auto';
                 messageInput.style.height = `${messageInput.scrollHeight}px`;
-                sendBtn.classList.remove('hidden');
-                micBtn.classList.add('hidden');
-                voiceModeBtn.classList.add('hidden');
+                if (final_transcript || interim_transcript) {
+                    sendBtn.classList.remove('hidden');
+                    micBtn.classList.add('hidden');
+                    voiceModeBtn.classList.add('hidden');
+                }
             } else {
                 voiceInterimTranscript.textContent = final_transcript || interim_transcript;
             }
@@ -1387,7 +1498,7 @@ function startNewChat() {
     document.body.classList.add('initial-view');
     deactivateWebSearch();
     currentMode = null;
-    removeFile();
+    clearAllFiles();
     messageInput.value = '';
     renderChatHistorySidebar();
     
@@ -1519,12 +1630,27 @@ async function deleteLibraryFile(fileId) {
 }
 
 function selectLibraryFile(file) {
-    fileData = file.fileData;
-    fileType = file.fileType;
-    fileInfoForDisplay = { name: file.fileName, type: file.fileType, dataUrl: `data:${file.fileType};base64,${file.fileData}` };
+    const fileId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
-    showFilePreview({name: file.fileName, type: file.fileType});
+    // Add to filesData array
+    filesData.push({
+        id: fileId,
+        data: file.fileData,
+        type: file.fileType,
+        name: file.fileName
+    });
+    
+    // Create a mock file object for preview
+    const mockFile = {
+        name: file.fileName,
+        type: file.fileType
+    };
+    
+    showFilePreview(mockFile, fileId);
     sendBtn.classList.remove('hidden');
+    micBtn.classList.add('hidden');
+    voiceModeBtn.classList.add('hidden');
+    clearAllFilesBtn.classList.remove('hidden');
     closeLibraryModal();
 }
 
