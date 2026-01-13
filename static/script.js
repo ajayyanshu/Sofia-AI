@@ -82,6 +82,7 @@ const premiumSection = document.getElementById('premium-section');
 const razorpayBtn = document.getElementById('razorpay-btn');
 const usagePlanSection = document.getElementById('usage-plan-section');
 
+
 // --- Global State ---
 const markdownConverter = new showdown.Converter();
 
@@ -97,7 +98,6 @@ let currentChatId = null;
 
 // Hacking Mode State
 let isEthicalHackingMode = false;
-let isTrainingModeOn = false;
 
 // Plan & Usage State
 let usageCounts = {
@@ -265,6 +265,7 @@ contactModal.addEventListener('click', (e) => {
     }
 });
 
+
 // --- Ethical Hacking Mode Logic ---
 cyberTrainingBtn.addEventListener('click', () => {
     if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
@@ -279,12 +280,7 @@ closeCyberModalBtn.addEventListener('click', () => {
 
 toggleHackingModeBtn.addEventListener('click', () => {
     isEthicalHackingMode = !isEthicalHackingMode;
-    isTrainingModeOn = isEthicalHackingMode;
-    
-    // Force update UI immediately
     updateHackingModeUI();
-    
-    // Close modal
     cyberModal.classList.add('hidden');
     cyberModal.classList.remove('flex');
     
@@ -297,20 +293,18 @@ toggleHackingModeBtn.addEventListener('click', () => {
     if (isEthicalHackingMode) startNewChat(); 
 });
 
+/**
+ * UPDATED FUNCTION: Removes the background box and 
+ * shows plain text for Cyber Training Mode On.
+ */
 function updateHackingModeUI() {
     const headerTitle = document.querySelector('header span');
-    
-    // Force reflow to ensure UI updates properly
-    if (headerTitle) {
-        void headerTitle.offsetHeight;
-    }
-    
     if (isEthicalHackingMode) {
         toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
         toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Disable Teacher Mode";
         
-        // Update header title with Cyber Training Mode text
+        // Removed green background and padding; displaying only text
         if (headerTitle) {
             headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
         }
@@ -320,12 +314,12 @@ function updateHackingModeUI() {
         toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
         hackingModeStatusText.textContent = "Enable Teacher Mode";
         
-        // Reset header title
         if (headerTitle) {
             headerTitle.textContent = 'Sofia AI';
         }
     }
 }
+
 
 // --- Language and Theme Logic ---
 let currentLang = 'en';
@@ -956,7 +950,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM5 11a1 1 0 100 2h4a1 1 0 100-2H5z"/></svg>
                 </button>
                 <button class="action-btn like-btn" title="Good response">
-                   <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.821 2.311l-1.055 1.636a1 1 0 00-1.423 .23z"/></svg>
+                   <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.821 2.311l-1.055 1.636a1 1 0 00-1.423 .23z"/></svg>
                 </button>
                 <button class="action-btn dislike-btn" title="Bad response">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0011.057 2H5.642a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.821-2.311l1.055-1.636a1 1 0 001.423 .23z"/></svg>
@@ -1262,6 +1256,7 @@ function endVoiceConversation() {
 voiceModeBtn.addEventListener('click', startVoiceConversation);
 endVoiceBtn.addEventListener('click', endVoiceConversation);
 
+
 // --- Chat History Functions ---
 
 // Function to render skeleton loader in sidebar
@@ -1366,6 +1361,7 @@ async function loadChatsFromDB() {
     }
 }
 
+
 function renderChatHistorySidebar() {
     chatHistoryContainer.innerHTML = '';
     if (chatHistory.length === 0) {
@@ -1397,7 +1393,7 @@ function renderChatHistorySidebar() {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
             </button>
             <button class="p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600" title="Delete">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 011.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
         `;
 
@@ -1661,6 +1657,7 @@ function selectLibraryFile(file) {
 libraryBtn.addEventListener('click', openLibraryModal);
 closeLibraryBtn.addEventListener('click', closeLibraryModal);
 
+
 // --- Plan, Usage & Payment Functions ---
 upgradePlanSidebarBtn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -1729,6 +1726,7 @@ razorpayBtn.addEventListener('click', () => {
     rzp1.open();
 });
 
+
 // --- Initializations ---
 async function fetchAndDisplayUserInfo() {
     try {
@@ -1765,6 +1763,7 @@ async function fetchAndDisplayUserInfo() {
         if (avatarImg) {
             avatarImg.src = `https://placehold.co/32x32/E2E8F0/4A5568?text=${userInitial}`;
         }
+
 
         if(userData.email) {
              document.getElementById('profile-email').textContent = userData.email;
