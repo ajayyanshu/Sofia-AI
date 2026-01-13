@@ -807,9 +807,9 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         let fileHtml = '';
         if (fileInfo) {
             if (fileInfo.type.startsWith('image/')) {
-                 fileHtml = `<img src="${fileInfo.dataUrl}" alt="User upload" class="rounded-lg mb-2 max-w-xs">`;
+                 fileHtml = `<img src="${fileInfoForDisplay.dataUrl}" alt="User upload" class="rounded-lg mb-2 max-w-xs">`;
             } else {
-                fileHtml = `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2"><svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><span class="text-sm text-blue-800">${fileInfo.name}</span></div>`;
+                fileHtml = `<div class="flex items-center bg-blue-100 rounded-lg p-2 mb-2"><svg class="h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><span class="text-sm text-blue-800">${fileInfo.name}</span></div>`;
             }
         }
         
@@ -824,12 +824,6 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
 
         messageBubble.innerHTML = fileHtml + `<div>${text}</div>` + modeHtml;
         messageBubble.className = 'message-bubble user-message ml-auto';
-        
-        // --- MULTIPLE SELECTION UPDATE ---
-        messageBubble.addEventListener('click', () => {
-             messageBubble.classList.toggle('active');
-        });
-        
         chatContainer.appendChild(messageBubble);
 
     } else if (sender === 'ai') {
@@ -862,12 +856,6 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         
         aiMessageContainer.innerHTML = avatar;
         aiMessageContainer.appendChild(messageBubble);
-        
-        // --- MULTIPLE SELECTION UPDATE ---
-        aiMessageContainer.addEventListener('click', () => {
-             messageBubble.classList.toggle('active');
-        });
-        
         chatContainer.appendChild(aiMessageContainer);
 
         const codeBlocks = messageBubble.querySelectorAll('pre');
@@ -876,8 +864,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             copyButton.className = 'code-copy-btn';
             copyButton.textContent = 'Copy Code';
 
-            copyButton.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent toggling selection when clicking copy
+            copyButton.addEventListener('click', () => {
                 const code = pre.querySelector('code');
                 if (code) {
                     navigator.clipboard.writeText(code.innerText);
@@ -896,7 +883,6 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         }
 
         messageBubble.querySelector('.copy-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
             const button = e.currentTarget;
             const originalContent = button.innerHTML;
             navigator.clipboard.writeText(text).then(() => {
@@ -908,20 +894,17 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         });
 
         messageBubble.querySelector('.like-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
             e.currentTarget.classList.toggle('text-blue-600');
             messageBubble.querySelector('.dislike-btn').classList.remove('text-red-600');
         });
 
         messageBubble.querySelector('.dislike-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
             e.currentTarget.classList.toggle('text-red-600');
             messageBubble.querySelector('.like-btn').classList.remove('text-blue-600');
         });
 
         const speakBtn = messageBubble.querySelector('.speak-btn');
-        speakBtn.addEventListener('click', (e) => {
-             e.stopPropagation();
+        speakBtn.addEventListener('click', () => {
              if (window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
                 document.querySelectorAll('.speak-btn').forEach(btn => btn.classList.remove('text-green-600', 'animate-pulse'));
@@ -1496,13 +1479,13 @@ function renderLibraryFiles(files) {
         if (file.fileType.startsWith('image/')) {
             previewHtml = `<img src="data:${file.fileType};base64,${file.fileData}" alt="${file.fileName}" class="w-20 h-20 object-cover rounded-md mb-2">`;
         } else if (file.fileType.includes('pdf')) {
-            previewHtml = `<svg class="w-20 h-20 mb-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         } else if (file.fileType.includes('word') || file.fileType.includes('document')) {
-            previewHtml = `<svg class="w-20 h-20 mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
         } else if (file.fileType.includes('text/') || file.fileName.endsWith('.py') || file.fileName.endsWith('.js') || file.fileName.endsWith('.html')) {
-            previewHtml = `<svg class="w-20 h-20 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l-4 4-4-4M6 16l-4-4 4-4" /></svg>`;
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l-4 4-4-4M6 16l-4-4 4-4" /></svg>`;
         } else {
-            previewHtml = `<svg class="w-20 h-20 mb-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
+            previewHtml = `<svg class="w-20 h-20 mb-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>`;
         }
         
         item.innerHTML = `
