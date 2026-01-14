@@ -40,6 +40,15 @@ MONGO_URI = os.environ.get("MONGO_URI")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
+# --- New Plan Configuration ---
+FREE_PLAN_LIMITS = {
+    "monthly_messages": 500,
+    "daily_voice_commands": 5,
+    "monthly_document_reads": 1,
+    "daily_web_searches": 1,
+    "document_pages": 5
+}
+
 # --- Brevo (Email) Configuration ---
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com") # Must be verified in Brevo
@@ -228,6 +237,10 @@ def api_signup():
     # Generate a 6-digit OTP code
     otp_code = str(random.randint(100000, 999999))
 
+    current_date = datetime.utcnow()
+    current_month = current_date.strftime('%Y-%m')
+    current_day = current_date.strftime('%Y-%m-%d')
+
     new_user = {
         "name": name, 
         "email": email, 
@@ -235,12 +248,24 @@ def api_signup():
         "isAdmin": email == ADMIN_EMAIL, 
         "isPremium": False, 
         "is_verified": False,
-        "verification_token": otp_code, # Store OTP in the verification_token field
+        "verification_token": otp_code,
         "session_id": str(uuid.uuid4()),
-        "usage_counts": { "messages": 0, "webSearches": 0 },
-        "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
-        "timestamp": datetime.utcnow().isoformat()
+        "usage_counts": { 
+            "messages": 0, 
+            "voice_commands": 0,
+            "document_reads": 0,
+            "web_searches": 0,
+            "document_pages_read": 0
+        },
+        "reset_timestamps": {
+            "message_reset_month": current_month,
+            "voice_command_reset_day": current_day,
+            "document_read_reset_month": current_month,
+            "web_search_reset_day": current_day
+        },
+        "timestamp": current_date.isoformat()
     }
+    
     users_collection.insert_one(new_user)
 
     # Send Verification Email with OTP
@@ -382,14 +407,28 @@ def reset_password():
 @login_required
 def get_user_info():
     user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-    usage_counts = user_data.get('usage_counts', {"messages": 0, "webSearches": 0})
+    usage_counts = user_data.get('usage_counts', {
+        "messages": 0, 
+        "voice_commands": 0,
+        "document_reads": 0,
+        "web_searches": 0,
+        "document_pages_read": 0
+    })
+    
+    reset_timestamps = user_data.get('reset_timestamps', {})
     
     return jsonify({
         "name": current_user.name,
         "email": current_user.email,
         "isAdmin": current_user.isAdmin,
         "isPremium": current_user.isPremium,
-        "usageCounts": usage_counts
+        "usageCounts": usage_counts,
+        "planLimits": FREE_PLAN_LIMITS,
+        "resetTimestamps": reset_timestamps,
+        "messagesRemaining": FREE_PLAN_LIMITS["monthly_messages"] - usage_counts.get("messages", 0),
+        "webSearchesRemaining": FREE_PLAN_LIMITS["daily_web_searches"] - usage_counts.get("web_searches", 0),
+        "documentReadsRemaining": FREE_PLAN_LIMITS["monthly_document_reads"] - usage_counts.get("document_reads", 0),
+        "documentPagesRemaining": FREE_PLAN_LIMITS["document_pages"] - usage_counts.get("document_pages_read", 0)
     })
 
 @app.route('/logout', methods=['POST'])
@@ -468,7 +507,8 @@ def get_chats():
             chats_list.append({
                 "id": str(chat["_id"]),
                 "title": chat.get("title", "Untitled Chat"),
-                "messages": chat.get("messages", [])
+                "messages": chat.get("messages", []),
+                "timestamp": chat.get("timestamp", "").isoformat() if chat.get("timestamp") else ""
             })
         return jsonify(chats_list)
     except Exception as e:
@@ -610,6 +650,53 @@ def upload_library_item():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
+    # Check document read limits for free users
+    if not current_user.isPremium and not current_user.isAdmin:
+        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        current_month = datetime.utcnow().strftime('%Y-%m')
+        
+        # Check if we need to reset document read counter
+        if user_data.get('reset_timestamps', {}).get('document_read_reset_month') != current_month:
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$set': {
+                    'usage_counts.document_reads': 0,
+                    'usage_counts.document_pages_read': 0,
+                    'reset_timestamps.document_read_reset_month': current_month
+                }}
+            )
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        
+        document_reads = user_data.get('usage_counts', {}).get('document_reads', 0)
+        document_pages_read = user_data.get('usage_counts', {}).get('document_pages_read', 0)
+        
+        # Check monthly document read limit (1 per month)
+        if document_reads >= FREE_PLAN_LIMITS["monthly_document_reads"]:
+            return jsonify({
+                'error': f'You have reached your monthly document read limit ({FREE_PLAN_LIMITS["monthly_document_reads"]} document). Please upgrade your plan for unlimited access.',
+                'upgrade_required': True
+            }), 429
+        
+        # For PDF files, check number of pages
+        if 'pdf' in file.mimetype:
+            try:
+                pdf_content = file.read()
+                pdf_document = fitz.open(stream=pdf_content, filetype="pdf")
+                page_count = len(pdf_document)
+                pdf_document.close()
+                
+                # Check if adding this document would exceed page limit
+                if document_pages_read + page_count > FREE_PLAN_LIMITS["document_pages"]:
+                    return jsonify({
+                        'error': f'This document has {page_count} pages, which would exceed your monthly page limit ({FREE_PLAN_LIMITS["document_pages"]} pages). Please upgrade your plan.',
+                        'upgrade_required': True
+                    }), 429
+                
+                # Reset file pointer to beginning
+                file.seek(0)
+            except Exception as e:
+                print(f"Error checking PDF pages: {e}")
+    
     filename = file.filename
     file_content = file.read()
     file_type = file.mimetype
@@ -621,8 +708,34 @@ def upload_library_item():
         extracted_text = "Image file."
     elif 'pdf' in file_type:
         extracted_text = extract_text_from_pdf(file_content)
+        
+        # For free users, update document page count
+        if not current_user.isPremium and not current_user.isAdmin:
+            try:
+                pdf_document = fitz.open(stream=file_content, filetype="pdf")
+                page_count = len(pdf_document)
+                pdf_document.close()
+                
+                users_collection.update_one(
+                    {'_id': ObjectId(current_user.id)},
+                    {'$inc': {
+                        'usage_counts.document_reads': 1,
+                        'usage_counts.document_pages_read': page_count
+                    }}
+                )
+            except Exception as e:
+                print(f"Error updating page count: {e}")
     elif 'word' in file_type or file_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         extracted_text = extract_text_from_docx(file_content)
+        # For free users, count document reads for Word files (count as 1 page)
+        if not current_user.isPremium and not current_user.isAdmin:
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$inc': {
+                    'usage_counts.document_reads': 1,
+                    'usage_counts.document_pages_read': 1
+                }}
+            )
     elif 'text' in file_type:
         try:
             extracted_text = file_content.decode('utf-8')
@@ -723,133 +836,169 @@ def extract_text_from_docx(docx_bytes):
         print(f"Error extracting DOCX text: {e}")
         return ""
 
+def get_file_from_github(filename):
+    if not all([GITHUB_USER, GITHUB_REPO]):
+        print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
+        return None
+    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading from GitHub: {e}")
+        return None
+
+def get_video_id(video_url):
+    match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
+    return match.group(1) if match else None
+
+def get_youtube_transcript(video_id):
+    try:
+        return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
+    except Exception as e:
+        print(f"Error getting YouTube transcript: {e}")
+        return None
+
+def call_api(url, headers, json_payload, api_name):
+    try:
+        response = requests.post(url, headers=headers, json=json_payload)
+        response.raise_for_status()
+        result = response.json()
+        if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
+             return result['choices'][0]['message']['content']
+        else:
+            return None
+    except Exception as e:
+        print(f"Error calling {api_name} API: {e}")
+        return None
+
+def search_web(query):
+    if not SERPER_API_KEY:
+        return "Web search is disabled because the API key is not configured."
+
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({"q": query})
+    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        results = response.json()
+        snippets = []
+        if "organic" in results:
+            for item in results.get("organic", [])[:5]:
+                title = item.get("title", "No Title")
+                snippet = item.get("snippet", "No Snippet")
+                link = item.get("link", "No Link")
+                snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
+        if snippets:
+            return "\n\n---\n\n".join(snippets)
+        elif "answerBox" in results:
+            answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
+            if answer: return f"Direct Answer: {answer}"
+        return "No relevant web results found."
+    except Exception as e:
+        print(f"Error calling Serper API: {e}")
+        return f"An error occurred during the web search: {e}"
+
+def search_library(user_id, query):
+    if not library_collection: return None
+    try:
+        keywords = re.split(r'\s+', query)
+        regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
+        items_cursor = library_collection.find({
+            "user_id": user_id,
+            "extracted_text": {"$regex": regex_pattern, "$options": "i"}
+        }).limit(3)
+        snippets = []
+        for item in items_cursor:
+            filename = item.get("filename", "Untitled")
+            snippet = item.get("extracted_text", "")
+            context_snippet = snippet[:300]
+            snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
+        if snippets: return "\n\n---\n\n".join(snippets)
+        else: return None
+    except Exception as e:
+        return None
+
+def should_auto_search(user_message):
+    msg_lower = user_message.lower().strip()
+    security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
+    code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
+    general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
+    chat_keywords = ['hi', 'hello', 'thanks']
+    if any(msg_lower.startswith(k) for k in chat_keywords): return None
+    if any(k in msg_lower for k in security_keywords): return 'security_search'
+    if any(k in user_message for k in code_keywords): return 'code_security_scan'
+    if any(k in msg_lower for k in general_search_keywords): return 'web_search'
+    if len(user_message.split()) > 6: return 'web_search'
+    return None
+
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
+    # Check for free user limits
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-        last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
-        last_reset_date = datetime.strptime(last_reset_str, '%Y-%m-%d').date()
-        today = datetime.utcnow().date()
-
-        if last_reset_date < today:
+        current_date = datetime.utcnow()
+        current_month = current_date.strftime('%Y-%m')
+        current_day = current_date.strftime('%Y-%m-%d')
+        
+        # Check if we need to reset any counters
+        update_needed = False
+        update_fields = {}
+        
+        # Reset messages if month changed
+        if user_data.get('reset_timestamps', {}).get('message_reset_month') != current_month:
+            update_fields['usage_counts.messages'] = 0
+            update_fields['reset_timestamps.message_reset_month'] = current_month
+            update_needed = True
+        
+        # Reset voice commands if day changed
+        if user_data.get('reset_timestamps', {}).get('voice_command_reset_day') != current_day:
+            update_fields['usage_counts.voice_commands'] = 0
+            update_fields['reset_timestamps.voice_command_reset_day'] = current_day
+            update_needed = True
+        
+        # Reset document reads if month changed
+        if user_data.get('reset_timestamps', {}).get('document_read_reset_month') != current_month:
+            update_fields['usage_counts.document_reads'] = 0
+            update_fields['usage_counts.document_pages_read'] = 0
+            update_fields['reset_timestamps.document_read_reset_month'] = current_month
+            update_needed = True
+        
+        # Reset web searches if day changed
+        if user_data.get('reset_timestamps', {}).get('web_search_reset_day') != current_day:
+            update_fields['usage_counts.web_searches'] = 0
+            update_fields['reset_timestamps.web_search_reset_day'] = current_day
+            update_needed = True
+        
+        if update_needed:
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
-                {'$set': {
-                    'usage_counts': {'messages': 0, 'webSearches': 0},
-                    'last_usage_reset': today.strftime('%Y-%m-%d')
-                }}
+                {'$set': update_fields}
             )
+            # Refresh user data after update
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         
+        # Get current usage
         usage = user_data.get('usage_counts', {})
         messages_used = usage.get('messages', 0)
         
-        if messages_used >= 15:
+        # Check monthly message limit (500 messages)
+        if messages_used >= FREE_PLAN_LIMITS["monthly_messages"]:
             return jsonify({
-                'error': 'You have reached your daily message limit. Please upgrade for unlimited access.',
-                'upgrade_required': True
+                'error': f'You have reached your monthly message limit ({FREE_PLAN_LIMITS["monthly_messages"]} messages). Please upgrade your plan for unlimited access.',
+                'upgrade_required': True,
+                'current_usage': messages_used,
+                'limit': FREE_PLAN_LIMITS["monthly_messages"]
             }), 429
             
-        users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.messages': 1}})
-
-    def get_file_from_github(filename):
-        if not all([GITHUB_USER, GITHUB_REPO]):
-            print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
-            return None
-        url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading from GitHub: {e}")
-            return None
-
-    def get_video_id(video_url):
-        match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
-        return match.group(1) if match else None
-
-    def get_youtube_transcript(video_id):
-        try:
-            return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
-        except Exception as e:
-            print(f"Error getting YouTube transcript: {e}")
-            return None
-
-    def call_api(url, headers, json_payload, api_name):
-        try:
-            response = requests.post(url, headers=headers, json=json_payload)
-            response.raise_for_status()
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
-                 return result['choices'][0]['message']['content']
-            else:
-                return None
-        except Exception as e:
-            print(f"Error calling {api_name} API: {e}")
-            return None
-
-    def search_web(query):
-        if not SERPER_API_KEY:
-            return "Web search is disabled because the API key is not configured."
-
-        url = "https://google.serper.dev/search"
-        payload = json.dumps({"q": query})
-        headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-        try:
-            response = requests.post(url, headers=headers, data=payload)
-            response.raise_for_status()
-            results = response.json()
-            snippets = []
-            if "organic" in results:
-                for item in results.get("organic", [])[:5]:
-                    title = item.get("title", "No Title")
-                    snippet = item.get("snippet", "No Snippet")
-                    link = item.get("link", "No Link")
-                    snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
-            if snippets:
-                return "\n\n---\n\n".join(snippets)
-            elif "answerBox" in results:
-                answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
-                if answer: return f"Direct Answer: {answer}"
-            return "No relevant web results found."
-        except Exception as e:
-            print(f"Error calling Serper API: {e}")
-            return f"An error occurred during the web search: {e}"
-
-    def search_library(user_id, query):
-        if not library_collection: return None
-        try:
-            keywords = re.split(r'\s+', query)
-            regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
-            items_cursor = library_collection.find({
-                "user_id": user_id,
-                "extracted_text": {"$regex": regex_pattern, "$options": "i"}
-            }).limit(3)
-            snippets = []
-            for item in items_cursor:
-                filename = item.get("filename", "Untitled")
-                snippet = item.get("extracted_text", "")
-                context_snippet = snippet[:300]
-                snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
-            if snippets: return "\n\n---\n\n".join(snippets)
-            else: return None
-        except Exception as e:
-            return None
-    
-    def should_auto_search(user_message):
-        msg_lower = user_message.lower().strip()
-        security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
-        code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
-        general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
-        chat_keywords = ['hi', 'hello', 'thanks']
-        if any(msg_lower.startswith(k) for k in chat_keywords): return None
-        if any(k in msg_lower for k in security_keywords): return 'security_search'
-        if any(k in user_message for k in code_keywords): return 'code_security_scan'
-        if any(k in msg_lower for k in general_search_keywords): return 'web_search'
-        if len(user_message.split()) > 6: return 'web_search'
-        return None
+        # Increment message counter
+        users_collection.update_one(
+            {'_id': ObjectId(current_user.id)}, 
+            {'$inc': {'usage_counts.messages': 1}}
+        )
 
     try:
         data = request.json
@@ -873,21 +1022,28 @@ def chat():
         if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
             if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-                searches_used = user_data.get('usage_counts', {}).get('webSearches', 0)
-                if searches_used >= 1: web_search_context = "Web search limit reached."
+                searches_used = user_data.get('usage_counts', {}).get('web_searches', 0)
+                
+                # Check daily web search limit (1 per day)
+                if searches_used >= FREE_PLAN_LIMITS["daily_web_searches"]:
+                    web_search_context = "Web search limit reached. You have used your 1 daily web search."
                 else:
                     web_search_context = search_web(user_message)
-                    users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
+                    users_collection.update_one(
+                        {'_id': ObjectId(current_user.id)}, 
+                        {'$inc': {'usage_counts.web_searches': 1}}
+                    )
             else:
                 web_search_context = search_web(user_message)
         
         gemini_history = []
         openai_history = []
+        # Remember old messages (last 10 messages)
         if conversations_collection is not None and not is_temporary:
             try:
                 recent_conversation = conversations_collection.find_one({"user_id": ObjectId(current_user.id)}, sort=[("timestamp", -1)])
                 if recent_conversation and 'messages' in recent_conversation:
-                    past_messages = recent_conversation['messages'][-10:]
+                    past_messages = recent_conversation['messages'][-10:]  # Last 10 messages
                     for msg in past_messages:
                         role = msg.get('sender')
                         content = msg.get('text', '')
@@ -902,11 +1058,11 @@ def chat():
 
         if not is_multimodal and user_message.strip():
             if request_mode == 'code_security_scan':
-                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst..."
+                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. Analyze the provided code for security vulnerabilities, suggest improvements, and provide secure code examples."
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Scan)")
             elif (web_search_context or library_search_context):
-                SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
+                SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources clearly."
                 context_parts = []
                 if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
@@ -915,6 +1071,7 @@ def chat():
             elif GROQ_API_KEY:
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
 
+        # Primary Gemini with automatic fallback to Groq
         if not ai_response:
             model = genai.GenerativeModel("gemini-2.5-flash-lite")
             prompt_parts = [user_message] if user_message else []
@@ -930,6 +1087,7 @@ def chat():
                 elif 'image' in file_type: prompt_parts.append(Image.open(io.BytesIO(fbytes)))
 
             try:
+                # Try Gemini first with conversation history
                 if web_search_context or library_search_context or request_mode == 'code_security_scan':
                     response = model.generate_content(prompt_parts)
                 else:
@@ -937,10 +1095,30 @@ def chat():
                     response = model.generate_content(full_prompt)
                 ai_response = response.text
             except Exception as e:
-                ai_response = "Sorry, I encountered an error trying to respond."
+                print(f"Gemini API Error: {e}")
+                # Fallback to Groq if Gemini fails
+                if GROQ_API_KEY:
+                    print("Falling back to Groq API...")
+                    try:
+                        # Use OpenAI format history for Groq
+                        fallback_history = openai_history.copy()
+                        if len(fallback_history) > 0:
+                            ai_response = call_api(
+                                "https://api.groq.com/openai/v1/chat/completions", 
+                                {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                                {"model": "llama-3.1-8b-instant", "messages": fallback_history}, 
+                                "Groq (Fallback)"
+                            )
+                    except Exception as groq_error:
+                        print(f"Groq Fallback Error: {groq_error}")
+                
+                # If both Gemini and Groq fail
+                if not ai_response:
+                    ai_response = "Sorry, I encountered an error trying to respond. Please try again."
 
         return jsonify({'response': ai_response})
     except Exception as e:
+        print(f"Chat endpoint error: {e}")
         return jsonify({'response': "Sorry, an internal error occurred."})
 
 @app.route('/save_chat_history', methods=['POST'])
@@ -967,6 +1145,152 @@ def save_chat_history():
     except Exception as e:
         return jsonify({'success': False, 'error': 'Failed to generate chat history.'}), 500
 
+# --- Voice Command Endpoint (Placeholder for Future Implementation) ---
+@app.route('/api/voice_command', methods=['POST'])
+@login_required
+def voice_command():
+    """Placeholder endpoint for voice command functionality."""
+    if not current_user.isPremium and not current_user.isAdmin:
+        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        current_day = datetime.utcnow().strftime('%Y-%m-%d')
+        
+        # Reset voice commands if day changed
+        if user_data.get('reset_timestamps', {}).get('voice_command_reset_day') != current_day:
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$set': {
+                    'usage_counts.voice_commands': 0,
+                    'reset_timestamps.voice_command_reset_day': current_day
+                }}
+            )
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        
+        voice_commands_used = user_data.get('usage_counts', {}).get('voice_commands', 0)
+        
+        # Check daily voice command limit (5 per day)
+        if voice_commands_used >= FREE_PLAN_LIMITS["daily_voice_commands"]:
+            return jsonify({
+                'error': f'You have reached your daily voice command limit ({FREE_PLAN_LIMITS["daily_voice_commands"]} commands). Please upgrade your plan for unlimited access.',
+                'upgrade_required': True
+            }), 429
+        
+        # Increment voice command counter
+        users_collection.update_one(
+            {'_id': ObjectId(current_user.id)}, 
+            {'$inc': {'usage_counts.voice_commands': 1}}
+        )
+    
+    # Placeholder response - integrate with actual voice processing service
+    return jsonify({
+        'success': True,
+        'message': 'Voice command received. Voice features coming soon!',
+        'transcript': 'This is a placeholder for voice transcription'
+    })
+
+# --- Usage Statistics Endpoint ---
+@app.route('/api/usage_stats', methods=['GET'])
+@login_required
+def get_usage_stats():
+    user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    usage_counts = user_data.get('usage_counts', {
+        "messages": 0, 
+        "voice_commands": 0,
+        "document_reads": 0,
+        "web_searches": 0,
+        "document_pages_read": 0
+    })
+    
+    reset_timestamps = user_data.get('reset_timestamps', {})
+    
+    stats = {
+        "messages": {
+            "used": usage_counts.get("messages", 0),
+            "limit": FREE_PLAN_LIMITS["monthly_messages"],
+            "remaining": FREE_PLAN_LIMITS["monthly_messages"] - usage_counts.get("messages", 0),
+            "reset_month": reset_timestamps.get("message_reset_month", ""),
+            "percentage": min(100, int((usage_counts.get("messages", 0) / FREE_PLAN_LIMITS["monthly_messages"]) * 100))
+        },
+        "web_searches": {
+            "used": usage_counts.get("web_searches", 0),
+            "limit": FREE_PLAN_LIMITS["daily_web_searches"],
+            "remaining": FREE_PLAN_LIMITS["daily_web_searches"] - usage_counts.get("web_searches", 0),
+            "reset_day": reset_timestamps.get("web_search_reset_day", ""),
+            "percentage": min(100, int((usage_counts.get("web_searches", 0) / FREE_PLAN_LIMITS["daily_web_searches"]) * 100))
+        },
+        "document_reads": {
+            "used": usage_counts.get("document_reads", 0),
+            "limit": FREE_PLAN_LIMITS["monthly_document_reads"],
+            "remaining": FREE_PLAN_LIMITS["monthly_document_reads"] - usage_counts.get("document_reads", 0),
+            "pages_read": usage_counts.get("document_pages_read", 0),
+            "page_limit": FREE_PLAN_LIMITS["document_pages"],
+            "pages_remaining": FREE_PLAN_LIMITS["document_pages"] - usage_counts.get("document_pages_read", 0),
+            "reset_month": reset_timestamps.get("document_read_reset_month", ""),
+            "percentage": min(100, int((usage_counts.get("document_reads", 0) / FREE_PLAN_LIMITS["monthly_document_reads"]) * 100))
+        },
+        "voice_commands": {
+            "used": usage_counts.get("voice_commands", 0),
+            "limit": FREE_PLAN_LIMITS["daily_voice_commands"],
+            "remaining": FREE_PLAN_LIMITS["daily_voice_commands"] - usage_counts.get("voice_commands", 0),
+            "reset_day": reset_timestamps.get("voice_command_reset_day", ""),
+            "percentage": min(100, int((usage_counts.get("voice_commands", 0) / FREE_PLAN_LIMITS["daily_voice_commands"]) * 100))
+        },
+        "plan": "Free Plan" if not current_user.isPremium else "Sofia AI Pro",
+        "isPremium": current_user.isPremium
+    }
+    
+    return jsonify(stats)
+
+# --- Upgrade Endpoint (Placeholder for Payment Integration) ---
+@app.route('/api/upgrade_to_pro', methods=['POST'])
+@login_required
+def upgrade_to_pro():
+    """Endpoint to upgrade user to premium plan."""
+    data = request.get_json()
+    payment_method = data.get('payment_method', 'razorpay')  # Example: razorpay, stripe, etc.
+    
+    # In a real implementation, integrate with payment gateway
+    # For college project, we can simulate successful payment
+    
+    try:
+        users_collection.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$set': {'isPremium': True}}
+        )
+        
+        # Send upgrade confirmation email
+        user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        email = user_data.get('email')
+        name = user_data.get('name')
+        
+        html_content = f"""
+        <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="text-align: center; color: #333;">🎉 Welcome to Sofia AI Pro, {name}!</h2>
+            <p style="font-size: 16px; color: #555;">Thank you for upgrading to Sofia AI Pro! Your account has been successfully upgraded.</p>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #28a745;">🎯 Pro Plan Benefits:</h3>
+                <ul style="font-size: 14px; color: #555;">
+                    <li>✅ Unlimited Text Messages</li>
+                    <li>✅ Unlimited Voice Commands</li>
+                    <li>✅ Unlimited Document Reads</li>
+                    <li>✅ Unlimited Web Searches</li>
+                    <li>✅ Priority Support</li>
+                </ul>
+            </div>
+            <p style="font-size: 14px; color: #888; text-align: center;">Start exploring all the premium features now!</p>
+        </div>
+        """
+        
+        Thread(target=send_async_brevo_email, args=(app, email, "Welcome to Sofia AI Pro!", html_content)).start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Successfully upgraded to Sofia AI Pro!',
+            'isPremium': True
+        })
+    except Exception as e:
+        print(f"Upgrade error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to upgrade account.'}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
