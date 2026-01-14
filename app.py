@@ -726,13 +726,16 @@ def extract_text_from_docx(docx_bytes):
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
+    # Free plan usage check and reset logic
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
         last_reset_date = datetime.strptime(last_reset_str, '%Y-%m-%d').date()
         today = datetime.utcnow().date()
 
-        if last_reset_date < today:
+        # Check for month change (for message reset) and day change (for web search reset)
+        if last_reset_date.month < today.month or last_reset_date.year < today.year:
+            # New month: reset both message and web search counts
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
@@ -741,13 +744,24 @@ def chat():
                 }}
             )
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+        elif last_reset_date < today:
+            # New day: reset only web search count
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$set': {
+                    'usage_counts.webSearches': 0,
+                    'last_usage_reset': today.strftime('%Y-%m-%d')
+                }}
+            )
+            user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         
         usage = user_data.get('usage_counts', {})
         messages_used = usage.get('messages', 0)
         
-        if messages_used >= 15:
+        # Check message limit (500 per month for free plan)
+        if messages_used >= 500:
             return jsonify({
-                'error': 'You have reached your daily message limit. Please upgrade for unlimited access.',
+                'error': 'You have reached your monthly message limit. Please upgrade for unlimited access.',
                 'upgrade_required': True
             }), 429
             
@@ -870,11 +884,26 @@ def chat():
                 if auto_mode in ['web_search', 'security_search']:
                     library_search_context = search_library(ObjectId(current_user.id), user_message)
 
+        # Web search with daily limit for free users
         if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
             if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
                 searches_used = user_data.get('usage_counts', {}).get('webSearches', 0)
-                if searches_used >= 1: web_search_context = "Web search limit reached."
+                
+                # Check if it's a new day for web search reset
+                last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
+                last_reset_date = datetime.strptime(last_reset_str, '%Y-%m-%d').date()
+                today = datetime.utcnow().date()
+                
+                if last_reset_date < today:
+                    users_collection.update_one(
+                        {'_id': ObjectId(current_user.id)},
+                        {'$set': {'usage_counts.webSearches': 0}}
+                    )
+                    searches_used = 0
+                
+                if searches_used >= 1:
+                    web_search_context = "Daily web search limit reached."
                 else:
                     web_search_context = search_web(user_message)
                     users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
@@ -900,47 +929,107 @@ def chat():
 
         openai_history.append({"role": "user", "content": user_message})
 
+        # Try Gemini first, fall back to Groq if it fails
+        gemini_response = None
         if not is_multimodal and user_message.strip():
+            try:
+                if request_mode == 'code_security_scan':
+                    CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. Analyze the code for security vulnerabilities and provide recommendations."
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                    full_prompt = f"{CODE_SECURITY_PROMPT}\n\nCode to analyze:\n{user_message}"
+                    response = gemini_model.generate_content(full_prompt)
+                    gemini_response = response.text
+                    
+                elif (web_search_context or library_search_context):
+                    SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
+                    context_parts = []
+                    if web_search_context: 
+                        context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
+                    if library_search_context: 
+                        context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
+                    
+                    full_context = f"{SYSTEM_PROMPT}\n\n{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                    response = gemini_model.generate_content(full_context)
+                    gemini_response = response.text
+                    
+                else:
+                    # General chat - use Gemini with history
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                    if gemini_history:
+                        full_history = gemini_history + [{'role': 'user', 'parts': [user_message]}]
+                        response = gemini_model.generate_content(full_history)
+                    else:
+                        response = gemini_model.generate_content(user_message)
+                    gemini_response = response.text
+                    
+            except Exception as e:
+                print(f"Gemini API error: {e}")
+                gemini_response = None
+
+        # If Gemini failed or wasn't used, try Groq as fallback
+        if not gemini_response and not is_multimodal and user_message.strip() and GROQ_API_KEY:
             if request_mode == 'code_security_scan':
                 CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst..."
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Scan)")
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
+                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                                       {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, 
+                                       "Groq (Code Scan)")
             elif (web_search_context or library_search_context):
                 SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
                 context_parts = []
                 if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
-                search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
-            elif GROQ_API_KEY:
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, 
+                                            {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"}]
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
+                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                                       {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, 
+                                       "Groq (Contextual Search)")
+            else:
+                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
+                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                                       {"model": "llama-3.1-8b-instant", "messages": openai_history}, 
+                                       "Groq")
+        elif gemini_response:
+            ai_response = gemini_response
 
+        # Handle multimodal requests (files, YouTube, etc.) - always use Gemini
         if not ai_response:
-            model = genai.GenerativeModel("gemini-2.5-flash-lite")
-            prompt_parts = [user_message] if user_message else []
-            if "youtube.com" in user_message or "youtu.be" in user_message:
-                video_id = get_video_id(user_message)
-                transcript = get_youtube_transcript(video_id) if video_id else None
-                if transcript: prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
-                else: return jsonify({'response': "Sorry, couldn't get the transcript."})
-            elif file_data:
-                fbytes = base64.b64decode(file_data)
-                if 'pdf' in file_type: prompt_parts.append(extract_text_from_pdf(fbytes))
-                elif 'word' in file_type: prompt_parts.append(extract_text_from_docx(fbytes))
-                elif 'image' in file_type: prompt_parts.append(Image.open(io.BytesIO(fbytes)))
-
             try:
-                if web_search_context or library_search_context or request_mode == 'code_security_scan':
-                    response = model.generate_content(prompt_parts)
-                else:
-                    full_prompt = gemini_history + [{'role': 'user', 'parts': prompt_parts}]
-                    response = model.generate_content(full_prompt)
+                model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                prompt_parts = [user_message] if user_message else []
+                
+                if "youtube.com" in user_message or "youtu.be" in user_message:
+                    video_id = get_video_id(user_message)
+                    transcript = get_youtube_transcript(video_id) if video_id else None
+                    if transcript: 
+                        prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
+                    else: 
+                        return jsonify({'response': "Sorry, couldn't get the transcript."})
+                elif file_data:
+                    fbytes = base64.b64decode(file_data)
+                    if 'pdf' in file_type: 
+                        prompt_parts.append(extract_text_from_pdf(fbytes))
+                    elif 'word' in file_type: 
+                        prompt_parts.append(extract_text_from_docx(fbytes))
+                    elif 'image' in file_type: 
+                        prompt_parts.append(Image.open(io.BytesIO(fbytes)))
+
+                response = model.generate_content(prompt_parts)
                 ai_response = response.text
             except Exception as e:
+                print(f"Multimodal Gemini error: {e}")
                 ai_response = "Sorry, I encountered an error trying to respond."
+
+        # Final fallback if all APIs failed
+        if not ai_response:
+            ai_response = "Sorry, I'm having trouble generating a response. Please try again."
 
         return jsonify({'response': ai_response})
     except Exception as e:
+        print(f"Chat endpoint error: {e}")
         return jsonify({'response': "Sorry, an internal error occurred."})
 
 @app.route('/save_chat_history', methods=['POST'])
