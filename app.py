@@ -8,6 +8,8 @@ from datetime import datetime, date, timedelta
 import uuid
 import random
 from threading import Thread
+import logging
+from logging.handlers import RotatingFileHandler
 
 import docx
 import fitz  # PyMuPDF
@@ -28,11 +30,34 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
+# --- Enhanced Logging Configuration ---
+def setup_logging():
+    """Configure logging for the application"""
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # Configure logging format
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            RotatingFileHandler('logs/app.log', maxBytes=10000000, backupCount=10),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    # Create separate loggers for different components
+    app.logger = logging.getLogger('sofia_ai')
+    app.logger.setLevel(logging.INFO)
+
+setup_logging()
+
 # --- Configuration ---
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key") 
 app.config['SECRET_KEY'] = SECRET_KEY
 if SECRET_KEY == "dev-secret-key":
-    print("CRITICAL WARNING: Using a default, insecure FLASK_SECRET_KEY for development.")
+    app.logger.warning("CRITICAL WARNING: Using a default, insecure FLASK_SECRET_KEY for development.")
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -54,24 +79,27 @@ BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com") # Must be verified in Brevo
 
 if not BREVO_API_KEY:
-    print("CRITICAL WARNING: BREVO_API_KEY not found. Email features will not work.")
+    app.logger.warning("CRITICAL WARNING: BREVO_API_KEY not found. Email features will not work.")
 
 # --- API Services Configuration ---
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-    print(f"✅ Loaded google-generativeai version: {genai.__version__}")
+    app.logger.info(f"✅ Loaded google-generativeai version: {genai.__version__}")
 else:
-    print("CRITICAL ERROR: GOOGLE_API_KEY environment variable not found.")
+    app.logger.error("CRITICAL ERROR: GOOGLE_API_KEY environment variable not found.")
 
 if YOUTUBE_API_KEY:
-    print("✅ YouTube API Key loaded.")
+    app.logger.info("✅ YouTube API Key loaded.")
 else:
-    print("CRITICAL WARNING: YOUTUBE_API_KEY not found. YouTube features will be disabled.")
+    app.logger.warning("CRITICAL WARNING: YOUTUBE_API_KEY not found. YouTube features will be disabled.")
 
 if SERPER_API_KEY:
-    print("✅ Serper API Key (for web search) loaded.")
+    app.logger.info("✅ Serper API Key (for web search) loaded.")
 else:
-    print("CRITICAL WARNING: SERPER_API_KEY not found. AI web search will be disabled.")
+    app.logger.warning("CRITICAL WARNING: SERPER_API_KEY not found. AI web search will be disabled.")
+
+# --- AI Response Tracking Collection ---
+ai_logs_collection = None
 
 # --- MongoDB Configuration ---
 mongo_client = None
@@ -86,18 +114,19 @@ if MONGO_URI:
         mongo_client = MongoClient(MONGO_URI)
         db = mongo_client.get_database("ai_assistant_db")
         db.command('ping')
-        print("✅ Successfully pinged MongoDB.")
+        app.logger.info("✅ Successfully pinged MongoDB.")
         
         chat_history_collection = db.get_collection("chat_history")
         temporary_chat_collection = db.get_collection("temporary_chats")
         conversations_collection = db.get_collection("conversations")
         users_collection = db.get_collection("users")
         library_collection = db.get_collection("library_items")
-        print("✅ Successfully connected to MongoDB.")
+        ai_logs_collection = db.get_collection("ai_response_logs")  # New collection for AI logs
+        app.logger.info("✅ Successfully connected to MongoDB.")
     except Exception as e:
-        print(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
+        app.logger.error(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
 else:
-    print("CRITICAL WARNING: MONGO_URI not found. Data will not be saved.")
+    app.logger.warning("CRITICAL WARNING: MONGO_URI not found. Data will not be saved.")
 
 # --- Flask-Login Configuration ---
 login_manager = LoginManager()
@@ -122,7 +151,7 @@ class User(UserMixin):
             user_data = users_collection.find_one({"_id": ObjectId(user_id)})
             return User(user_data) if user_data else None
         except Exception as e:
-            print(f"USER_GET_ERROR: Failed to get user {user_id}. Error: {e}")
+            app.logger.error(f"USER_GET_ERROR: Failed to get user {user_id}. Error: {e}")
             return None
 
 @login_manager.user_loader
@@ -143,11 +172,109 @@ GITHUB_REPO = os.environ.get("GITHUB_REPO")
 GITHUB_FOLDER_PATH = os.environ.get("GITHUB_FOLDER_PATH", "")
 PDF_KEYWORDS = {} # Configure your keywords here
 
+# --- Helper: Log AI Responses to Database ---
+def log_ai_response(user_id, user_message, ai_response, model_used, response_time, 
+                   request_mode=None, has_context=False, fallback_used=False):
+    """Log AI responses to database for tracking and analytics"""
+    if ai_logs_collection is None:
+        return
+    
+    try:
+        log_entry = {
+            "user_id": ObjectId(user_id) if isinstance(user_id, str) else user_id,
+            "user_message": user_message[:500],  # Truncate long messages
+            "ai_response": ai_response[:1000] if ai_response else "",  # Truncate long responses
+            "model_used": model_used,
+            "response_time_ms": response_time,
+            "request_mode": request_mode or "chat",
+            "has_context": has_context,
+            "fallback_used": fallback_used,
+            "timestamp": datetime.utcnow(),
+            "user_plan": "premium" if current_user.isPremium else "free",
+            "message_length": len(user_message) if user_message else 0,
+            "response_length": len(ai_response) if ai_response else 0
+        }
+        
+        ai_logs_collection.insert_one(log_entry)
+        app.logger.info(f"📊 AI Response Logged: {model_used} | Mode: {request_mode} | Time: {response_time}ms")
+        
+    except Exception as e:
+        app.logger.error(f"Error logging AI response: {e}")
+
+# --- Helper: Get AI Response Statistics ---
+def get_ai_stats(user_id=None, days_back=7):
+    """Get statistics about AI model usage"""
+    if ai_logs_collection is None:
+        return None
+    
+    try:
+        query = {}
+        if user_id:
+            query["user_id"] = ObjectId(user_id) if isinstance(user_id, str) else user_id
+        
+        # Add date filter
+        cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+        query["timestamp"] = {"$gte": cutoff_date}
+        
+        # Get total count by model
+        pipeline = [
+            {"$match": query},
+            {"$group": {
+                "_id": "$model_used",
+                "count": {"$sum": 1},
+                "avg_response_time": {"$avg": "$response_time_ms"},
+                "total_messages": {"$sum": "$message_length"},
+                "total_responses": {"$sum": "$response_length"}
+            }},
+            {"$sort": {"count": -1}}
+        ]
+        
+        results = list(ai_logs_collection.aggregate(pipeline))
+        
+        # Get daily usage
+        daily_pipeline = [
+            {"$match": query},
+            {"$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "count": {"$sum": 1},
+                "gemini": {"$sum": {"$cond": [{"$eq": ["$model_used", "gemini"]}, 1, 0]}},
+                "groq": {"$sum": {"$cond": [{"$eq": ["$model_used", "groq"]}, 1, 0]}},
+                "fallbacks": {"$sum": {"$cond": ["$fallback_used", 1, 0]}}
+            }},
+            {"$sort": {"_id": 1}},
+            {"$limit": 14}
+        ]
+        
+        daily_results = list(ai_logs_collection.aggregate(daily_pipeline))
+        
+        # Get mode distribution
+        mode_pipeline = [
+            {"$match": query},
+            {"$group": {
+                "_id": "$request_mode",
+                "count": {"$sum": 1}
+            }},
+            {"$sort": {"count": -1}}
+        ]
+        
+        mode_results = list(ai_logs_collection.aggregate(mode_pipeline))
+        
+        return {
+            "model_stats": results,
+            "daily_usage": daily_results,
+            "mode_stats": mode_results,
+            "total_requests": sum(item["count"] for item in results) if results else 0
+        }
+        
+    except Exception as e:
+        app.logger.error(f"Error getting AI stats: {e}")
+        return None
+
 # --- Helper: Send Email via Brevo ---
 def send_brevo_email(to_email, subject, html_content):
     """Sends an email using the Brevo (Sendinblue) API."""
     if not BREVO_API_KEY:
-        print("EMAIL SKIP: BREVO_API_KEY is not set.")
+        app.logger.warning("EMAIL SKIP: BREVO_API_KEY is not set.")
         return False
 
     url = "https://api.brevo.com/v3/smtp/email"
@@ -166,10 +293,10 @@ def send_brevo_email(to_email, subject, html_content):
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status() # Raise error for bad status codes
-        print(f"✅ Email sent successfully to {to_email}")
+        app.logger.info(f"✅ Email sent successfully to {to_email}")
         return True
     except Exception as e:
-        print(f"❌ BREVO EMAIL ERROR: {e}")
+        app.logger.error(f"❌ BREVO EMAIL ERROR: {e}")
         return False
 
 def send_async_brevo_email(app, to_email, subject, html_content):
@@ -214,6 +341,15 @@ def signup_redirect():
 @app.route('/reset-password')
 def reset_password_page():
     return render_template('reset_password.html')
+
+# --- New: AI Analytics Dashboard ---
+@app.route('/analytics')
+@login_required
+def analytics_dashboard():
+    """Renders the analytics dashboard page"""
+    if not current_user.isAdmin and not current_user.isPremium:
+        return redirect(url_for('home'))
+    return render_template('analytics.html')
 
 # --- API Authentication Routes ---
 
@@ -267,6 +403,7 @@ def api_signup():
     }
     
     users_collection.insert_one(new_user)
+    app.logger.info(f"New user registered: {email}")
 
     # Send Verification Email with OTP
     html_content = f"""
@@ -312,6 +449,7 @@ def api_verify_otp():
         {"$set": {"is_verified": True}, "$unset": {"verification_token": 1}}
     )
 
+    app.logger.info(f"User email verified: {email}")
     return jsonify({'success': True, 'message': 'Account verified successfully!'})
 
 
@@ -340,8 +478,10 @@ def api_login():
         user_obj = User(user_data)
         login_user(user_obj)
         session['session_id'] = new_session_id
+        app.logger.info(f"User logged in: {email}")
         return jsonify({'success': True, 'user': {'name': user_data['name'], 'email': user_data['email']}})
     else:
+        app.logger.warning(f"Failed login attempt for email: {email}")
         return jsonify({'success': False, 'error': 'Incorrect email or password.'}), 401
 
 @app.route('/api/request_password_reset', methods=['POST'])
@@ -373,6 +513,7 @@ def request_password_reset():
     """
     
     Thread(target=send_async_brevo_email, args=(app, email, "Reset Your Password - Sofia AI", html_content)).start()
+    app.logger.info(f"Password reset requested for: {email}")
         
     return jsonify({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
@@ -401,6 +542,7 @@ def reset_password():
         }
     )
     
+    app.logger.info(f"Password reset successful for user: {user.get('email')}")
     return jsonify({'success': True, 'message': 'Password has been reset successfully.'})
 
 @app.route('/get_user_info')
@@ -434,6 +576,7 @@ def get_user_info():
 @app.route('/logout', methods=['POST'])
 @login_required
 def logout():
+    app.logger.info(f"User logged out: {current_user.email}")
     logout_user()
     return jsonify({'success': True})
 
@@ -446,10 +589,11 @@ def logout_all_devices():
     try:
         new_session_id = str(uuid.uuid4())
         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$set': {'session_id': new_session_id}})
+        app.logger.info(f"User logged out from all devices: {current_user.email}")
         logout_user()
         return jsonify({'success': True, 'message': 'Successfully logged out of all devices.'})
     except Exception as e:
-        print(f"LOGOUT_ALL_ERROR: {e}")
+        app.logger.error(f"LOGOUT_ALL_ERROR: {e}")
         return jsonify({'success': False, 'error': 'Server error during logout.'}), 500
 
 @app.route('/delete_account', methods=['DELETE'])
@@ -479,18 +623,37 @@ def delete_account():
         if update_result.matched_count > 0:
             try:
                 logout_user()
+                app.logger.info(f"Account deleted: {user_id}")
             except Exception as e:
-                print(f"LOGOUT_ERROR_ON_DELETE: {e}")
+                app.logger.error(f"LOGOUT_ERROR_ON_DELETE: {e}")
             return jsonify({'success': True})
         else:
             return jsonify({'success': False, 'error': 'User not found.'}), 404
     except Exception as e:
-        print(f"MONGO_DELETE_ERROR: {e}")
+        app.logger.error(f"MONGO_DELETE_ERROR: {e}")
         return jsonify({'success': False, 'error': 'Error deleting user details.'}), 500
 
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({'status': 'ok'}), 200
+
+# --- New: AI Model Usage Statistics API ---
+@app.route('/api/ai_stats', methods=['GET'])
+@login_required
+def get_ai_statistics():
+    """Get AI model usage statistics for the current user"""
+    if not current_user.isAdmin and not current_user.isPremium:
+        return jsonify({'error': 'Access denied. Premium or Admin required.'}), 403
+    
+    days_back = request.args.get('days', default=7, type=int)
+    user_id = None if current_user.isAdmin else current_user.id
+    
+    stats = get_ai_stats(user_id, days_back)
+    
+    if stats is None:
+        return jsonify({'error': 'Failed to get AI statistics'}), 500
+    
+    return jsonify(stats)
 
 # --- Chat History CRUD API ---
 
@@ -512,7 +675,7 @@ def get_chats():
             })
         return jsonify(chats_list)
     except Exception as e:
-        print(f"Error fetching chats: {e}")
+        app.logger.error(f"Error fetching chats: {e}")
         return jsonify({"error": "Could not fetch chat history"}), 500
 
 @app.route('/api/chats', methods=['POST'])
@@ -557,9 +720,10 @@ def save_chat():
             }
             result = conversations_collection.insert_one(chat_document)
             new_id = str(result.inserted_id)
+            app.logger.info(f"Chat saved: {new_id} by user {current_user.email}")
             return jsonify({"id": new_id, "title": title})
     except Exception as e:
-        print(f"Error saving chat: {e}")
+        app.logger.error(f"Error saving chat: {e}")
         return jsonify({"error": "Could not save chat"}), 500
 
 @app.route('/api/chats/<chat_id>', methods=['PUT'])
@@ -580,9 +744,10 @@ def rename_chat(chat_id):
         )
         if result.matched_count == 0:
             return jsonify({"error": "Chat not found or permission denied"}), 404
+        app.logger.info(f"Chat renamed: {chat_id} to '{new_title}'")
         return jsonify({"success": True})
     except Exception as e:
-        print(f"Error renaming chat: {e}")
+        app.logger.error(f"Error renaming chat: {e}")
         return jsonify({"error": "Could not rename chat"}), 500
 
 @app.route('/api/chats/<chat_id>', methods=['DELETE'])
@@ -597,9 +762,10 @@ def delete_chat_by_id(chat_id):
         )
         if result.deleted_count == 0:
             return jsonify({"error": "Chat not found or permission denied"}), 404
+        app.logger.info(f"Chat deleted: {chat_id}")
         return jsonify({"success": True})
     except Exception as e:
-        print(f"Error deleting chat: {e}")
+        app.logger.error(f"Error deleting chat: {e}")
         return jsonify({"error": "Could not delete chat"}), 500
 
 # --- Library CRUD API ---
@@ -622,7 +788,7 @@ def get_ai_summary(text_content):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"AI_SUMMARY_ERROR: {e}")
+        app.logger.error(f"AI_SUMMARY_ERROR: {e}")
         return f"Could not generate summary. Error: {e}"
 
 def run_ai_summary_in_background(app, item_id, text_content):
@@ -634,8 +800,9 @@ def run_ai_summary_in_background(app, item_id, text_content):
                     {"_id": ObjectId(item_id)},
                     {"$set": {"ai_summary": summary, "ai_summary_status": "completed"}}
                 )
+                app.logger.info(f"AI summary generated for library item: {item_id}")
             except Exception as e:
-                print(f"BACKGROUND_MONGO_ERROR: {e}")
+                app.logger.error(f"BACKGROUND_MONGO_ERROR: {e}")
 
 @app.route('/library/upload', methods=['POST'])
 @login_required
@@ -695,7 +862,7 @@ def upload_library_item():
                 # Reset file pointer to beginning
                 file.seek(0)
             except Exception as e:
-                print(f"Error checking PDF pages: {e}")
+                app.logger.error(f"Error checking PDF pages: {e}")
     
     filename = file.filename
     file_content = file.read()
@@ -724,7 +891,7 @@ def upload_library_item():
                     }}
                 )
             except Exception as e:
-                print(f"Error updating page count: {e}")
+                app.logger.error(f"Error updating page count: {e}")
     elif 'word' in file_type or file_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         extracted_text = extract_text_from_docx(file_content)
         # For free users, count document reads for Word files (count as 1 page)
@@ -766,6 +933,7 @@ def upload_library_item():
                 {"$set": {"ai_summary": "Not applicable.", "ai_summary_status": "completed"}}
             )
 
+        app.logger.info(f"Library item uploaded: {filename} by user {current_user.email}")
         return jsonify({
             "success": True, 
             "id": str(new_id),
@@ -774,7 +942,7 @@ def upload_library_item():
             "timestamp": library_item["timestamp"].isoformat()
         })
     except Exception as e:
-        print(f"Error uploading library item: {e}")
+        app.logger.error(f"Error uploading library item: {e}")
         return jsonify({"error": "Could not save file to library"}), 500
 
 @app.route('/library/files', methods=['GET'])
@@ -799,7 +967,7 @@ def get_library_items():
             })
         return jsonify(items_list)
     except Exception as e:
-        print(f"Error fetching library items: {e}")
+        app.logger.error(f"Error fetching library items: {e}")
         return jsonify({"error": "Could not fetch library items"}), 500
 
 @app.route('/library/files/<item_id>', methods=['DELETE'])
@@ -813,9 +981,10 @@ def delete_library_item(item_id):
         )
         if result.deleted_count == 0:
             return jsonify({"error": "Item not found or permission denied"}), 404
+        app.logger.info(f"Library item deleted: {item_id}")
         return jsonify({"success": True})
     except Exception as e:
-        print(f"Error deleting library item: {e}")
+        app.logger.error(f"Error deleting library item: {e}")
         return jsonify({"error": "Could not delete library item"}), 500
 
 # --- Chat Logic ---
@@ -825,7 +994,7 @@ def extract_text_from_pdf(pdf_bytes):
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         return "".join(page.get_text() for page in pdf_document)
     except Exception as e:
-        print(f"Error extracting PDF text: {e}")
+        app.logger.error(f"Error extracting PDF text: {e}")
         return ""
 
 def extract_text_from_docx(docx_bytes):
@@ -833,32 +1002,8 @@ def extract_text_from_docx(docx_bytes):
         document = docx.Document(io.BytesIO(docx_bytes))
         return "\n".join([para.text for para in document.paragraphs])
     except Exception as e:
-        print(f"Error extracting DOCX text: {e}")
+        app.logger.error(f"Error extracting DOCX text: {e}")
         return ""
-
-def get_file_from_github(filename):
-    if not all([GITHUB_USER, GITHUB_REPO]):
-        print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
-        return None
-    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.content
-    except requests.exceptions.RequestException as e:
-        print(f"Error downloading from GitHub: {e}")
-        return None
-
-def get_video_id(video_url):
-    match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
-    return match.group(1) if match else None
-
-def get_youtube_transcript(video_id):
-    try:
-        return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
-    except Exception as e:
-        print(f"Error getting YouTube transcript: {e}")
-        return None
 
 def call_api(url, headers, json_payload, api_name):
     try:
@@ -870,7 +1015,7 @@ def call_api(url, headers, json_payload, api_name):
         else:
             return None
     except Exception as e:
-        print(f"Error calling {api_name} API: {e}")
+        app.logger.error(f"Error calling {api_name} API: {e}")
         return None
 
 def search_web(query):
@@ -898,7 +1043,7 @@ def search_web(query):
             if answer: return f"Direct Answer: {answer}"
         return "No relevant web results found."
     except Exception as e:
-        print(f"Error calling Serper API: {e}")
+        app.logger.error(f"Error calling Serper API: {e}")
         return f"An error occurred during the web search: {e}"
 
 def search_library(user_id, query):
@@ -937,6 +1082,9 @@ def should_auto_search(user_message):
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
+    # Start timing the response
+    start_time = datetime.utcnow()
+    
     # Check for free user limits
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -987,6 +1135,7 @@ def chat():
         
         # Check monthly message limit (500 messages)
         if messages_used >= FREE_PLAN_LIMITS["monthly_messages"]:
+            app.logger.warning(f"User {current_user.email} reached message limit: {messages_used}/{FREE_PLAN_LIMITS['monthly_messages']}")
             return jsonify({
                 'error': f'You have reached your monthly message limit ({FREE_PLAN_LIMITS["monthly_messages"]} messages). Please upgrade your plan for unlimited access.',
                 'upgrade_required': True,
@@ -1008,9 +1157,13 @@ def chat():
         is_temporary = data.get('isTemporary', False)
         request_mode = data.get('mode') 
         ai_response = None
+        model_used = None
+        fallback_used = False
         web_search_context = None 
         library_search_context = None
         is_multimodal = bool(file_data) or "youtube.com" in user_message or "youtu.be" in user_message or any(k in user_message.lower() for k in PDF_KEYWORDS)
+
+        app.logger.info(f"Chat request from {current_user.email}: {user_message[:50]}... | Mode: {request_mode}")
 
         if request_mode == 'chat' and not is_multimodal:
             auto_mode = should_auto_search(user_message)
@@ -1027,6 +1180,7 @@ def chat():
                 # Check daily web search limit (1 per day)
                 if searches_used >= FREE_PLAN_LIMITS["daily_web_searches"]:
                     web_search_context = "Web search limit reached. You have used your 1 daily web search."
+                    app.logger.info(f"User {current_user.email} reached web search limit")
                 else:
                     web_search_context = search_web(user_message)
                     users_collection.update_one(
@@ -1052,7 +1206,7 @@ def chat():
                         openai_role = 'user' if role == 'user' else 'assistant'
                         openai_history.append({"role": openai_role, "content": content})
             except Exception as e:
-                print(f"Error fetching chat history: {e}")
+                app.logger.error(f"Error fetching chat history: {e}")
 
         openai_history.append({"role": "user", "content": user_message})
 
@@ -1061,6 +1215,9 @@ def chat():
                 CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. Analyze the provided code for security vulnerabilities, suggest improvements, and provide secure code examples."
                 code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, "Groq (Code Scan)")
+                if ai_response:
+                    model_used = "groq"
+                    app.logger.info("📊 Using Groq API for code security scan")
             elif (web_search_context or library_search_context):
                 SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources clearly."
                 context_parts = []
@@ -1068,8 +1225,14 @@ def chat():
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                 search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"}]
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, "Groq (Contextual Search)")
+                if ai_response:
+                    model_used = "groq"
+                    app.logger.info("📊 Using Groq API for contextual search")
             elif GROQ_API_KEY:
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", {"Authorization": f"Bearer {GROQ_API_KEY}"}, {"model": "llama-3.1-8b-instant", "messages": openai_history}, "Groq")
+                if ai_response:
+                    model_used = "groq"
+                    app.logger.info("📊 Using Groq API for general chat")
 
         # Primary Gemini with automatic fallback to Groq
         if not ai_response:
@@ -1079,7 +1242,9 @@ def chat():
                 video_id = get_video_id(user_message)
                 transcript = get_youtube_transcript(video_id) if video_id else None
                 if transcript: prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
-                else: return jsonify({'response': "Sorry, couldn't get the transcript."})
+                else: 
+                    app.logger.warning("Couldn't get YouTube transcript")
+                    return jsonify({'response': "Sorry, couldn't get the transcript."})
             elif file_data:
                 fbytes = base64.b64decode(file_data)
                 if 'pdf' in file_type: prompt_parts.append(extract_text_from_pdf(fbytes))
@@ -1094,11 +1259,14 @@ def chat():
                     full_prompt = gemini_history + [{'role': 'user', 'parts': prompt_parts}]
                     response = model.generate_content(full_prompt)
                 ai_response = response.text
+                model_used = "gemini"
+                app.logger.info("✅ Using Gemini API (Primary)")
             except Exception as e:
-                print(f"Gemini API Error: {e}")
+                app.logger.error(f"Gemini API Error: {e}")
                 # Fallback to Groq if Gemini fails
                 if GROQ_API_KEY:
-                    print("Falling back to Groq API...")
+                    app.logger.warning("⚠️ Gemini failed, falling back to Groq API...")
+                    fallback_used = True
                     try:
                         # Use OpenAI format history for Groq
                         fallback_history = openai_history.copy()
@@ -1109,17 +1277,52 @@ def chat():
                                 {"model": "llama-3.1-8b-instant", "messages": fallback_history}, 
                                 "Groq (Fallback)"
                             )
+                            if ai_response:
+                                model_used = "groq"
+                                app.logger.info("✅ Fallback to Groq API successful")
                     except Exception as groq_error:
-                        print(f"Groq Fallback Error: {groq_error}")
+                        app.logger.error(f"Groq Fallback Error: {groq_error}")
                 
                 # If both Gemini and Groq fail
                 if not ai_response:
+                    model_used = "error"
                     ai_response = "Sorry, I encountered an error trying to respond. Please try again."
+                    app.logger.error("❌ Both Gemini and Groq APIs failed")
 
-        return jsonify({'response': ai_response})
+        # Calculate response time
+        response_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        
+        # Log the AI response to database
+        has_context = bool(web_search_context or library_search_context)
+        Thread(target=log_ai_response, args=(
+            current_user.id, 
+            user_message, 
+            ai_response, 
+            model_used, 
+            response_time,
+            request_mode,
+            has_context,
+            fallback_used
+        )).start()
+        
+        # Log to console with emojis for easy tracking
+        emoji = "🤖" if model_used == "gemini" else "⚡" if model_used == "groq" else "❌"
+        app.logger.info(f"{emoji} AI Response: {model_used.upper()} | Time: {response_time}ms | User: {current_user.email}")
+
+        return jsonify({
+            'response': ai_response,
+            'model': model_used,
+            'response_time': response_time,
+            'fallback_used': fallback_used
+        })
+        
     except Exception as e:
-        print(f"Chat endpoint error: {e}")
-        return jsonify({'response': "Sorry, an internal error occurred."})
+        app.logger.error(f"Chat endpoint error: {e}")
+        return jsonify({
+            'response': "Sorry, an internal error occurred.",
+            'model': 'error',
+            'response_time': 0
+        })
 
 @app.route('/save_chat_history', methods=['POST'])
 @login_required
@@ -1141,9 +1344,38 @@ def save_chat_history():
         response = make_response(html_content)
         response.headers["Content-Disposition"] = "attachment; filename=chat_history.html"
         response.headers["Content-Type"] = "text/html"
+        app.logger.info(f"Chat history exported by user: {current_user.email}")
         return response
     except Exception as e:
+        app.logger.error(f"Error saving chat history: {e}")
         return jsonify({'success': False, 'error': 'Failed to generate chat history.'}), 500
+
+# --- New: Real-time Log Streaming Endpoint ---
+@app.route('/api/logs/stream', methods=['GET'])
+@login_required
+def stream_logs():
+    """Stream real-time logs to the frontend"""
+    if not current_user.isAdmin and not current_user.isPremium:
+        return jsonify({'error': 'Access denied. Premium or Admin required.'}), 403
+    
+    def generate():
+        # Open the log file and stream its contents
+        log_file = 'logs/app.log'
+        if not os.path.exists(log_file):
+            yield f"data: {json.dumps({'error': 'Log file not found'})}\n\n"
+            return
+        
+        # Send existing log content
+        try:
+            with open(log_file, 'r') as f:
+                lines = f.readlines()[-100:]  # Last 100 lines
+                for line in lines:
+                    if 'AI Response:' in line or 'Using' in line:
+                        yield f"data: {json.dumps({'log': line.strip()})}\n\n"
+        except Exception as e:
+            app.logger.error(f"Error reading log file: {e}")
+    
+    return app.response_class(generate(), mimetype='text/event-stream')
 
 # --- Voice Command Endpoint (Placeholder for Future Implementation) ---
 @app.route('/api/voice_command', methods=['POST'])
@@ -1282,15 +1514,55 @@ def upgrade_to_pro():
         
         Thread(target=send_async_brevo_email, args=(app, email, "Welcome to Sofia AI Pro!", html_content)).start()
         
+        app.logger.info(f"User upgraded to Pro: {current_user.email}")
+        
         return jsonify({
             'success': True,
             'message': 'Successfully upgraded to Sofia AI Pro!',
             'isPremium': True
         })
     except Exception as e:
-        print(f"Upgrade error: {e}")
+        app.logger.error(f"Upgrade error: {e}")
         return jsonify({'success': False, 'error': 'Failed to upgrade account.'}), 500
+
+# --- New: System Health Endpoint ---
+@app.route('/api/system_health', methods=['GET'])
+@login_required
+def system_health():
+    """Get system health information"""
+    if not current_user.isAdmin:
+        return jsonify({'error': 'Access denied. Admin required.'}), 403
+    
+    health_info = {
+        'timestamp': datetime.utcnow().isoformat(),
+        'mongodb_connected': mongo_client is not None and mongo_client.server_info() is not None,
+        'gemini_configured': GOOGLE_API_KEY is not None,
+        'groq_configured': GROQ_API_KEY is not None,
+        'serper_configured': SERPER_API_KEY is not None,
+        'brevo_configured': BREVO_API_KEY is not None,
+        'total_users': users_collection.count_documents({}) if users_collection else 0,
+        'total_chats': conversations_collection.count_documents({}) if conversations_collection else 0,
+        'total_ai_responses': ai_logs_collection.count_documents({}) if ai_logs_collection else 0,
+        'uptime': 'N/A',  # Could be implemented with process start time
+    }
+    
+    # Calculate model usage stats
+    if ai_logs_collection:
+        try:
+            model_stats = ai_logs_collection.aggregate([
+                {"$group": {
+                    "_id": "$model_used",
+                    "count": {"$sum": 1},
+                    "avg_time": {"$avg": "$response_time_ms"}
+                }}
+            ])
+            health_info['model_usage'] = list(model_stats)
+        except Exception as e:
+            health_info['model_usage_error'] = str(e)
+    
+    return jsonify(health_info)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    app.logger.info(f"🚀 Starting Sofia AI Server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=True)
