@@ -103,7 +103,6 @@ let usageCounts = {
     messages: 0,
     webSearches: 0
 };
-// UPDATED: Changed to match the free plan in image.png - 500 messages/month, 1 web search/day
 const usageLimits = {
     messages: 500, 
     webSearches: 1
@@ -377,9 +376,7 @@ const translations = {
         contactUs: 'Contact Us',
         email: 'Email',
         telegram: 'Telegram',
-        contactMessage: "We'd love to hear from you!",
-        monthlyMessageLimit: 'monthly message limit',
-        dailyWebSearchLimit: 'daily web search limit'
+        contactMessage: "We'd love to hear from you!"
     },
     'hi': { 
         settings: 'सेटिंग्स', 
@@ -434,9 +431,7 @@ const translations = {
         contactUs: 'हमसे संपर्क करें',
         email: 'ईमेल',
         telegram: 'टेलीग्राम',
-        contactMessage: 'हमें आपसे जानकर खुशी होगी!',
-        monthlyMessageLimit: 'मासिक संदेश सीमा',
-        dailyWebSearchLimit: 'दैनिक वेब खोज सीमा'
+        contactMessage: 'हमें आपसे जानकर खुशी होगी!'
     },
     'bn': { 
         settings: 'সেটিংস', 
@@ -491,9 +486,7 @@ const translations = {
         contactUs: 'আমাদের সাথে যোগাযোগ করুন',
         email: 'ইমেল',
         telegram: 'টেলিগ্রাম',
-        contactMessage: 'আমরা আপনার কথা শুনতে চাই!',
-        monthlyMessageLimit: 'মাসিক বার্তা সীমা',
-        dailyWebSearchLimit: 'দৈনিক ওয়েব অনুসন্ধান সীমা'
+        contactMessage: 'আমরা আপনার কথা শুনতে চাই!'
     }
 };
 
@@ -785,9 +778,8 @@ async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text && filesData.length === 0) return;
     
-    // UPDATED: Check for monthly message limit instead of daily
     if (!isPremium && !isAdmin && usageCounts.messages >= usageLimits.messages) {
-        alert(`You've reached your ${translations[currentLang]['monthlyMessageLimit'] || 'monthly message limit'}. Please upgrade to continue.`);
+        alert("You've reached your monthly message limit. Please upgrade to continue.");
         if (isVoiceConversationActive) endVoiceConversation();
         openSettingsModal();
         switchSettingsTab('usage');
@@ -1059,9 +1051,8 @@ function addTypingIndicator() {
 
 // --- Feature Toggles ---
 function activateWebSearch() {
-     // UPDATED: Check for daily web search limit instead of monthly
      if (!isPremium && !isAdmin && usageCounts.webSearches >= usageLimits.webSearches) {
-        alert(`You've reached your ${translations[currentLang]['dailyWebSearchLimit'] || 'daily web search limit'}. Please upgrade for unlimited searches.`);
+        alert("You've reached your daily web search limit. Please upgrade for unlimited searches.");
         openSettingsModal();
         switchSettingsTab('usage');
         return;
@@ -1699,7 +1690,6 @@ function updateUsageUI() {
         usageTabBtn.classList.remove('hidden');
         sidebarUsageDisplay.classList.remove('hidden');
         
-        // UPDATED: Calculate percentage based on 500 monthly limit
         const percentage = Math.min((usageCounts.messages / usageLimits.messages) * 100, 100);
         
         const usedWord = translations[currentLang]['used'] || 'Used';
