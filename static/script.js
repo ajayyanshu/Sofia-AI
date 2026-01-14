@@ -38,7 +38,6 @@ const cyberModal = document.getElementById('cyber-modal');
 const closeCyberModalBtn = document.getElementById('close-cyber-modal');
 const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
 const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
-const cyberGameControls = document.getElementById('cyber-game-controls');
 
 // Contact Us Elements
 const contactMenuItem = document.getElementById('contact-menu-item');
@@ -70,16 +69,12 @@ const libraryGrid = document.getElementById('library-grid');
 const libraryEmptyMsg = document.getElementById('library-empty-msg');
 
 // Plan & Usage Elements
-const upgradePlanSidebarBtn = document.getElementById('upgrade-plan-sidebar-btn');
 const menuUsername = document.getElementById('menu-username');
 const sidebarUserPlan = document.getElementById('sidebar-user-plan');
 const sidebarUsageDisplay = document.getElementById('sidebar-usage-display');
 const planTitle = document.getElementById('plan-title');
 const usageCounter = document.getElementById('usage-counter');
 const usageProgressBar = document.getElementById('usage-progress-bar');
-const upgradeSection = document.getElementById('upgrade-section');
-const premiumSection = document.getElementById('premium-section');
-const razorpayBtn = document.getElementById('razorpay-btn');
 const usagePlanSection = document.getElementById('usage-plan-section');
 
 // --- Global State ---
@@ -107,7 +102,6 @@ const usageLimits = {
     messages: 500, 
     webSearches: 1
 };
-let isPremium = false;
 let isAdmin = false;
 
 // --- Sidebar & Temp Chat Logic ---
@@ -345,11 +339,7 @@ const translations = {
         sofiaTitle: 'Sofia AI',
         uploadCode: 'Upload code',
         usagePlan: 'Usage & Plan',
-        upgradePlan: 'Upgrade your plan',
         cyberTraining: 'Cyber Training',
-        upgrade: 'Upgrade',
-        verify: 'Verify',
-        verified: 'Verified',
         delete: 'Delete',
         emailVerification: 'Email Verification',
         logoutAllDevices: 'Log out of all devices',
@@ -364,14 +354,11 @@ const translations = {
         webSearchLimit: 'Web Search',
         saveHistory: 'Save & Search History',
         messages: 'messages',
-        unlimited: 'Unlimited',
         perDay: 'per day',
         perMonth: '1 per month (5 pages)',
         yesForever: '✔ Yes, Forever',
         msgsUsedMonth: 'messages used this month',
         freePlanTitle: 'Free Plan',
-        premiumPlanTitle: 'Sofia AI Pro',
-        upgradeBtnText: 'Upgrade for ₹49/month', 
         used: 'Used',
         contactUs: 'Contact Us',
         email: 'Email',
@@ -400,11 +387,7 @@ const translations = {
         sofiaTitle: 'सोफिया एआई',
         uploadCode: 'कोड अपलोड करें',
         usagePlan: 'उपयोग और योजना',
-        upgradePlan: 'अपना प्लान अपग्रेड करें',
         cyberTraining: 'साइबर प्रशिक्षण',
-        upgrade: 'अपग्रेड करें',
-        verify: 'सत्यापित करें',
-        verified: 'सत्यापित',
         delete: 'हटाएं',
         emailVerification: 'ईमेल सत्यापन',
         logoutAllDevices: 'सभी उपकरणों से लॉग आउट करें',
@@ -419,14 +402,11 @@ const translations = {
         webSearchLimit: 'वेब खोज',
         saveHistory: 'इतिहास सहेजें और खोजें',
         messages: 'संदेश',
-        unlimited: 'असीमित',
         perDay: 'प्रति दिन',
         perMonth: '1 प्रति माह (5 पृष्ठ)',
         yesForever: '✔ हाँ, हमेशा के लिए',
         msgsUsedMonth: 'इस महीने उपयोग किए गए संदेश',
         freePlanTitle: 'फ्री प्लान',
-        premiumPlanTitle: 'सोफिया एआई प्रो',
-        upgradeBtnText: '₹49/माह में अपग्रेड करें', 
         used: 'उपयोग किया गया',
         contactUs: 'हमसे संपर्क करें',
         email: 'ईमेल',
@@ -455,11 +435,7 @@ const translations = {
         sofiaTitle: 'সোফিয়া এআই',
         uploadCode: 'কোড আপলোড করুন',
         usagePlan: 'ব্যবহার এবং পরিকল্পনা',
-        upgradePlan: 'আপনার পরিকল্পনা আপগ্রেড করুন',
         cyberTraining: 'সাইবার প্রশিক্ষণ',
-        upgrade: 'আপগ্রেড করুন',
-        verify: 'যাচাই করুন',
-        verified: 'যাচাইকৃত',
         delete: 'মুছুন',
         emailVerification: 'ইমেল যাচাইকরণ',
         logoutAllDevices: 'সমস্ত ডিভাইস থেকে লগ আউট করুন',
@@ -474,14 +450,11 @@ const translations = {
         webSearchLimit: 'ওয়েব অনুসন্ধান',
         saveHistory: 'ইতিহাস সংরক্ষণ ও অনুসন্ধান',
         messages: 'বার্তা',
-        unlimited: 'সীমাহীন',
         perDay: 'প্রতিদিন',
         perMonth: 'মাসে ১টি (৫ পৃষ্ঠা)',
         yesForever: '✔ হ্যাঁ, চিরকাল',
         msgsUsedMonth: 'এই মাসে ব্যবহৃত বার্তা',
         freePlanTitle: 'ফ্রি প্ল্যান',
-        premiumPlanTitle: 'সোফিয়া এআই প্রো',
-        upgradeBtnText: '৪৯ টাকা/মাসে আপগ্রেড করুন', 
         used: 'ব্যবহৃত',
         contactUs: 'আমাদের সাথে যোগাযোগ করুন',
         email: 'ইমেল',
@@ -516,9 +489,6 @@ function applyLanguage(lang) {
     const usageTabSpan = document.querySelector('#usage-tab-btn span');
     if (usageTabSpan) usageTabSpan.textContent = translations[lang]['usagePlan'];
 
-    const upgradeSidebarSpan = document.querySelector('#upgrade-plan-sidebar-btn span');
-    if (upgradeSidebarSpan) upgradeSidebarSpan.textContent = translations[lang]['upgradePlan'];
-
     const cyberTrainingSpan = document.querySelector('#cyber-training-btn span');
     if (cyberTrainingSpan) cyberTrainingSpan.textContent = translations[lang]['cyberTraining'];
     
@@ -546,36 +516,28 @@ function applyLanguage(lang) {
         if (headerRow) {
             headerRow.children[0].textContent = translations[lang]['feature'];
             headerRow.children[1].textContent = translations[lang]['freePlanTitle'];
-            headerRow.children[2].innerHTML = `${translations[lang]['premiumPlanTitle']} <span class="text-sm font-normal">(₹49/month)</span>`;
         }
 
         const rows = planTable.querySelectorAll('.bg-gray-50 > div, .dark\\:bg-gray-800 > div');
         
-        if (rows.length >= 5) {
+        if (rows.length >= 4) {
             rows[0].children[0].textContent = translations[lang]['dailyTextMessages'];
             rows[0].children[1].textContent = `${usageLimits.messages} ${translations[lang]['messages']}`; 
-            rows[0].children[2].textContent = translations[lang]['unlimited'];
 
             rows[1].children[0].textContent = translations[lang]['voiceCommands'];
             rows[1].children[1].textContent = `5 ${translations[lang]['perDay']}`;
-            rows[1].children[2].textContent = translations[lang]['unlimited'];
 
             rows[2].children[0].textContent = translations[lang]['readDocs'];
             rows[2].children[1].textContent = translations[lang]['perMonth'];
-            rows[2].children[2].textContent = translations[lang]['unlimited'];
 
             rows[3].children[0].textContent = translations[lang]['webSearchLimit'];
             rows[3].children[1].textContent = `1 ${translations[lang]['perDay']}`;
-            rows[3].children[2].textContent = `${translations[lang]['unlimited']}*`;
-
-            rows[4].children[0].textContent = translations[lang]['saveHistory'];
-            rows[4].children[1].textContent = translations[lang]['yesForever'];
-            rows[4].children[2].textContent = translations[lang]['yesForever'];
+            
+            // The last row (save history) doesn't need translation updates as it's just checkmarks
         }
     }
 
     if (planTitle) planTitle.textContent = translations[lang]['freePlanTitle'];
-    if (razorpayBtn) razorpayBtn.textContent = translations[lang]['upgradeBtnText'];
 
     updateUsageUI();
 
@@ -778,8 +740,8 @@ async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text && filesData.length === 0) return;
     
-    if (!isPremium && !isAdmin && usageCounts.messages >= usageLimits.messages) {
-        alert("You've reached your monthly message limit. Please upgrade to continue.");
+    if (!isAdmin && usageCounts.messages >= usageLimits.messages) {
+        alert("You've reached your monthly message limit.");
         if (isVoiceConversationActive) endVoiceConversation();
         openSettingsModal();
         switchSettingsTab('usage');
@@ -860,7 +822,7 @@ async function sendMessage() {
             throw new Error(errorData.error || `Server Error: ${response.status}`);
         }
         
-        if (!isPremium && !isAdmin) {
+        if (!isAdmin) {
             usageCounts.messages++;
             fetch('/update_usage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'message' }) });
             updateUsageUI();
@@ -1051,8 +1013,8 @@ function addTypingIndicator() {
 
 // --- Feature Toggles ---
 function activateWebSearch() {
-     if (!isPremium && !isAdmin && usageCounts.webSearches >= usageLimits.webSearches) {
-        alert("You've reached your daily web search limit. Please upgrade for unlimited searches.");
+     if (!isAdmin && usageCounts.webSearches >= usageLimits.webSearches) {
+        alert("You've reached your daily web search limit.");
         openSettingsModal();
         switchSettingsTab('usage');
         return;
@@ -1664,29 +1626,13 @@ closeLibraryBtn.addEventListener('click', closeLibraryModal);
 
 
 // --- Plan, Usage & Payment Functions ---
-upgradePlanSidebarBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    userMenu.classList.add('hidden');
-    openSettingsModal();
-    switchSettingsTab('usage');
-});
-
 function updateUsageUI() {
      if (isAdmin) {
         sidebarUserPlan.textContent = "Admin";
-        upgradePlanSidebarBtn.classList.add('hidden');
         usageTabBtn.classList.add('hidden');
-        sidebarUsageDisplay.classList.add('hidden');
-    } else if (isPremium) {
-        sidebarUserPlan.textContent = "Premium";
-        usagePlanSection.classList.add('hidden');
-        upgradeSection.classList.add('hidden');
-        premiumSection.classList.remove('hidden');
-        upgradePlanSidebarBtn.classList.add('hidden');
         sidebarUsageDisplay.classList.add('hidden');
     } else {
         sidebarUserPlan.textContent = "Free";
-        upgradePlanSidebarBtn.classList.remove('hidden');
         usageTabBtn.classList.remove('hidden');
         sidebarUsageDisplay.classList.remove('hidden');
         
@@ -1702,35 +1648,6 @@ function updateUsageUI() {
     }
 }
 
-razorpayBtn.addEventListener('click', () => {
-     const options = {
-        "key": "rzp_test_YourKeyHere", 
-        "amount": "4900", 
-        "currency": "INR",
-        "name": "Sofia AI",
-        "description": "Premium Plan - Monthly",
-        "image": "https://placehold.co/100x100/3b82f6/FFFFFF?text=S",
-        "handler": function (response){
-            alert("Payment Successful! Payment ID: " + response.razorpay_payment_id);
-            isPremium = true;
-            updateUsageUI();
-            closeSettingsModal();
-        },
-        "prefill": {
-            "name": document.getElementById('profile-name').textContent,
-            "email": document.getElementById('profile-email').textContent,
-        },
-        "theme": {
-            "color": "#3b82f6"
-        }
-    };
-    const rzp1 = new Razorpay(options);
-    rzp1.on('payment.failed', function (response){
-            alert("Payment Failed. Error: " + response.error.description);
-    });
-    rzp1.open();
-});
-
 
 // --- Initializations ---
 async function fetchAndDisplayUserInfo() {
@@ -1743,7 +1660,6 @@ async function fetchAndDisplayUserInfo() {
         const userData = await response.json();
        
         isAdmin = userData.isAdmin || false;
-        isPremium = userData.isPremium || false;
 
         usageCounts = userData.usageCounts || { messages: 0, webSearches: 0 };
         
