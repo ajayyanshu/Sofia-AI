@@ -1,157 +1,46 @@
-# Sofia AI 🤖
+# Sofia AI 🤖 — Security-Focused Multimodal Assistant
 
-Sofia AI is a full-stack, intelligent AI chat assistant built with a Python (Flask) backend, a pure JavaScript (no framework) frontend, and a MongoDB database. It's designed to be a versatile and feature-rich chat application, integrating multiple AI models (Google Gemini and Groq), web search, file analysis, and user authentication.
+> **A robust, multimodal AI assistant designed for cybersecurity education, real-time web intelligence, and secure code analysis.**
 
-### ✨ Features
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Flask](https://img.shields.io/badge/Backend-Flask-lightgrey) ![MongoDB](https://img.shields.io/badge/Database-MongoDB-green) ![Security](https://img.shields.io/badge/Focus-Cybersecurity-red)
 
-* **Multi-Model AI:** Dynamically routes requests to **Google Gemini** (for powerful, general-purpose, and multimodal chats) and **Groq** (for high-speed text generation, contextual search, and code analysis).
-* **Full User Authentication:** Secure user signup, login, password reset (via email), and session management using Flask-Login.
-* **Rich Chat Interface:** Real-time chat with Markdown rendering, code block highlighting, and message actions (copy, share, etc.).
-* **Contextual Web Search:** A "Web Search" mode that uses the Serper.dev API to fetch real-time Google search results and provide context-aware, cited answers.
-* **File & Code Analysis:**
-    * Upload and chat with images, PDFs, and `.docx` files.
-    * A special "Code Security Scan" mode for vulnerability analysis.
-* **Personal Library:** Users can upload files to a persistent "Library," where they are stored, automatically summarized by AI, and can be retrieved for use in future chats.
-* **Voice Capabilities:**
-    * **Voice-to-Text:** Use your microphone to dictate messages.
-    * **Text-to-Speech:** Listen to AI responses.
-    * **Voice Conversation Mode:** Full hands-free, voice-activated conversation.
-* **Persistent Chat History:** Conversations are saved to the database. Users can load, rename, and delete past chats.
-* **Subscription & Usage Tiers:** Built-in logic for "Free" and "Premium" user tiers, including daily message/search limits and a (client-side) Razorpay payment button for upgrades.
-* **User Profile Management:** Dark/Light/System theme, language selection, and secure "Delete Account" option.
-
-### 🖼️ Screenshots
-
-*(I recommend adding a screenshot of your application here!)*
-
-`![Sofia AI Screenshot](link-to-your-screenshot.png)`
+**Sofia AI** goes beyond standard chatbots by integrating **Ethical Hacking education**, **Real-time Web Search**, and **Multimodal capabilities** (Voice, Image, File) into a secure, full-stack application. It leverages **Google Gemini** and **Groq** for high-performance inference and includes production-grade security features like **Brevo-verified authentication**.
 
 ---
 
-### 🛠️ Tech Stack
+## 🚀 Key Features
 
-* **Backend:**
-    * **Framework:** Flask
-    * **Database:** MongoDB (with `pymongo`)
-    * **Authentication:** Flask-Login, Flask-Mail (for password resets)
-* **Frontend:**
-    * **Markup:** HTML
-    * **Styling:** Tailwind CSS
-    * **Logic:** Vanilla JavaScript (ES6+)
-    * **Libraries:** Showdown (for Markdown), Razorpay (for payments)
-* **Core APIs & Services:**
-    * **Google Gemini API:** For primary AI generation.
-    * **Groq API:** For high-speed text and code analysis.
-    * **Serper.dev API:** For real-time Google Search results.
-    * **Web Speech API:** For browser-based voice I/O.
-* **Python Libraries:**
-    * `PyMuPDF (fitz)`: For PDF text extraction.
-    * `python-docx`: For `.docx` text extraction.
-    * `Pillow (PIL)`: For image processing.
+### 🛡️ Security & Education
+* **Teacher Mode (Ethical Hacking Instructor):** A specialized mode that transforms Sofia into an expert instructor, guiding users through penetration testing methodologies, defense strategies, and safety protocols.
+* **Secure Code Analysis:** Upload code files for instant vulnerability scanning and security recommendations.
+* **Threat Mitigation:** Built-in input validation to protect against prompt injection and jailbreak attempts.
+
+### 🧠 Multimodal Intelligence
+* **Voice-to-Voice Interaction:** Full duplex voice communication with microphone integration and text-to-speech response.
+* **Image & File Vision:** Analyze uploaded images, PDFs, and documents for content extraction and summarization.
+* **Real-Time Web Search:** Fetches live data from the web (via Serper.dev) to provide up-to-date answers with citations.
+
+### 🔐 Robust Architecture
+* **Secure Authentication:** User signup/login system integrated with **Brevo API** for email verification (OTP/Links) to prevent bot accounts.
+* **Multi-Model Routing:** Dynamically switches between **Google Gemini** (for reasoning/multimodal) and **Groq** (for speed) based on the task.
 
 ---
 
-### 🚀 Getting Started
+## 🛠️ Tech Stack
 
-Follow these instructions to get a copy of the project up and running on your local machine.
-
-#### 1. Prerequisites
-
-* Python 3.8+
-* MongoDB account (a free cluster on MongoDB Atlas is perfect)
-* API keys for Google Gemini, Groq, and Serper.dev
-
-#### 2. Installation & Setup
-
-1.  **Clone the repository:**
-    ```sh
-    git clone https://github.com/ajayyanshu/Sofia-Project.git
-    cd Sofia-Project
-    ```
-
-2.  **Set up the project structure:**
-    Your `app.py` file is set up to serve files from `static` and `templates` folders. You must place your files in the correct directories:
-
-    ```
-    /
-    ├── app.py              <-- Your Python file
-    ├── requirements.txt    <-- Generated for you
-    ├── .env.example        <-- Generated for you
-    ├── templates/
-    │   └── index.html      <-- Move index.html here
-    │   └── login.html      <-- (You will need to create this)
-    │   └── signup.html     <-- (You will need to create this)
-    └── static/
-        ├── style.css       <-- Move style.css here
-        └── script.js       <-- Move script.js here
-    ```
-
-3.  **Create a Python virtual environment:**
-    ```sh
-    # Windows
-    python -m venv venv
-    venv\Scripts\activate
-
-    # macOS / Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-4.  **Install dependencies:**
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-5.  **Set up environment variables:**
-    Copy the example file and fill in your API keys and database URI.
-    ```sh
-    cp .env.example .env
-    ```
-    Now, open the `.env` file in your text editor and add your secret keys.
-
-#### 3. Running the Application
-
-1.  **Load environment variables:**
-    *(Note: Flask often does this automatically if `python-dotenv` is installed and you use `flask run`)*
-    ```sh
-    # (If needed, depending on your OS)
-    # macOS / Linux
-    export $(grep -v '^#' .env | xargs)
-    ```
-
-2.  **Run the Flask app:**
-    ```sh
-    flask run
-    ```
-    Or, for development:
-    ```sh
-    python app.py
-    ```
-
-3.  Open your browser and navigate to `http://127.0.0.1:5000`.
+* **Backend:** Python (Flask), Werkzeug Security
+* **Frontend:** Vanilla JavaScript, HTML5, CSS3 (Responsive Design)
+* **Database:** MongoDB (User data & Chat history)
+* **AI Models:** Google Gemini Pro, Groq (Llama 3 / Mixtral)
+* **APIs:** Serper.dev (Search), Brevo (Email Auth)
 
 ---
-## Donations
 
-If you find HashCrackPro useful and would like to support its development, please consider making a donation. Your contributions help us maintain and improve the project.
+## ⚙️ Installation & Setup
 
-[![Donate](https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjd9o3K2CK9LObsNOok8nY4WYMSwKkhAzsz7NDxmO8eZU-d8dw4kEKW1Ycp3QpzVsT2okmWwoBXLXB757yQhoL0Xandlt3Wjwdw7tTlU4hTGdJcFH1tq1i0K6o7uTTGK-20fKi7DQhgoYEZkHI1-Y9UPBWAjiNhtn8TceqHS4O6kTaaeNweZe6OBJ0Ve0ou/s424/download.png)](https://buymeacoffee.com/ajayyanshu)
+Follow these steps to set up Sofia AI locally:
 
-[![Donate](https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgMgW12teTME3e1Ap4Lc6MuQ7mFoEfyKINWAQ8dDx0vRR6XXNXGNXSaOgFdFhB2kTv8d6r5TiMIpRqJv9EnrM2YU1Syrvq4KO32YcmjiJk-GLuxHGMwfTPIO1Zz1JE2lCSMTRcrY1JJues1jpC4qotBNumo3d3dC79uRFulGasM8vzSdneJmzunxKDiUKI2/s386/upi.PNG)]()
-
-
-### 📄 License
-
-This project is open-source. Feel free to add a license file  [License](https://github.com/ajayyanshu/Sofia-Project/blob/main/LICENSE).
-
-## Contact with us
-
-For inquiries and support, please contact us at [ajayyanshu@gmail.com](mailto:ajayyanshu@gmail.com).
-
-
-## Contributions
-
-Contributions are welcome! Please fork this repository and submit pull requests with your enhancements.
-
-
----
+### 1. Clone the Repository
+```bash
+git clone [https://github.com/ajayyanshu/Sofia-AI.git](https://github.com/ajayyanshu/Sofia-AI.git)
+cd Sofia-AI
