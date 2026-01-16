@@ -81,8 +81,16 @@ SECRET_KEY=your_flask_secret_key
 python app.py
 ```
 Visit http://127.0.0.1:5000 in your browser.
+---
 
-### 📸 Screenshots
+## 📸 Interface & Demo
+
+*(Add your main dashboard or chat interface screenshot here to grab attention immediately)*
+
+![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Upload+Your+Main+Dashboard+Screenshot+Here)
+
+> *Featuring Dark Mode, Code Highlighting, and Real-time Voice Interaction.*
+> ---
 
 
 ### 🔮 Future Roadmap
