@@ -84,21 +84,20 @@ Visit http://127.0.0.1:5000 in your browser.
 
 ## 📸 Interface & Demo
 
-*(Add your main dashboard or chat interface screenshot here to grab attention immediately)*
-
-![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Upload+Your+Main+Dashboard+Screenshot+Here)
+![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Add+Your+Dashboard+Screenshot+Here)
 
 > *Featuring Dark Mode, Code Highlighting, and Real-time Voice Interaction.*
-> ---
 
+---
 
-### 🔮 Future Roadmap
+## 🔮 Future Roadmap
 
-[ ] Integration with local LLMs (Ollama) for offline privacy.
+- [ ] Integration with local LLMs (Ollama) for offline privacy.
+- [ ] Advanced report generation for vulnerability scans.
+- [ ] Docker support for easy deployment.
 
-[ ] Advanced report generation for vulnerability scans.
+---
 
-[ ] Docker support for easy deployment.
+## 📩 Contact
 
-### 📩 Contact
-Ajay Kumar Security Engineer & Developer
+**Ajay Kumar** *Security Engineer & Developer* [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=flat&logo=linkedin)](https://linkedin.com/in/ajayyanshu/) [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=flat&logo=github)](https://github.com/ajayyanshu)
