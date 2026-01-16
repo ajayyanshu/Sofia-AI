@@ -42,5 +42,56 @@ Follow these steps to set up Sofia AI locally:
 
 ### 1. Clone the Repository
 ```bash
-git clone [https://github.com/ajayyanshu/Sofia-AI.git](https://github.com/ajayyanshu/Sofia-AI.git)
+git clone https://github.com/ajayyanshu/Sofia-AI.git
 cd Sofia-AI
+```
+
+### 2. Create a Virtual Environment
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+```
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment Variables
+Create a .env file in the root directory and add your API keys:
+```bash
+# Database
+MONGO_URI=your_mongodb_connection_string
+
+# AI Models
+GOOGLE_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_groq_api_key
+
+# Tools
+SERPER_API_KEY=your_serper_api_key (for Web Search)
+BREVO_API_KEY=your_brevo_api_key (for Email Verification)
+
+# Security
+SECRET_KEY=your_flask_secret_key
+```
+### 5. Run the Application
+```bash
+python app.py
+```
+Visit http://127.0.0.1:5000 in your browser.
+
+### 📸 Screenshots
+
+
+### 🔮 Future Roadmap
+
+[ ] Integration with local LLMs (Ollama) for offline privacy.
+
+[ ] Advanced report generation for vulnerability scans.
+
+[ ] Docker support for easy deployment.
+
+### 📩 Contact
+Ajay Kumar Security Engineer & Developer
