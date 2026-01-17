@@ -57,21 +57,12 @@ Follow these steps to set up Sofia AI locally:
 git clone https://github.com/ajayyanshu/Sofia-AI.git
 cd Sofia-AI
 ```
-
-### 2. Create a Virtual Environment
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-```
-### 3. Install Dependencies
+### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
+### 3. Configure Environment Variables
 Create a .env file in the root directory and add your API keys:
 ```bash
 # Database
@@ -88,18 +79,10 @@ BREVO_API_KEY=your_brevo_api_key (for Email Verification)
 # Security
 SECRET_KEY=your_flask_secret_key
 ```
-### 5. Run the Application
+### 4. Run the Application
 ```bash
 python app.py
 ```
-Visit http://127.0.0.1:5000 in your browser.
-
-## 📸 Interface & Demo
-
-![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Add+Your+Dashboard+Screenshot+Here)
-
-> *Featuring Dark Mode, Code Highlighting, and Real-time Voice Interaction.*
-
 ---
 
 ## 🔮 Future Roadmap
