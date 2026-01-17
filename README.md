@@ -35,6 +35,18 @@
 * **APIs:** Serper.dev (Search), Brevo (Email Auth)
 
 ---
+# 🟢 Live Demo
+**Click here to try Sofia AI instantly:** 👇
+### 🔗 https://sofia-ai-89kr.onrender.com/
+
+*(Note: Since this is hosted on a free instance, it may take 50 seconds to wake up. Please be patient!)*
+
+---
+
+## 📸 Interface & Demo
+![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Dashboard+Screenshot)
+
+---
 
 ## ⚙️ Installation & Setup
 
