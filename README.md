@@ -44,7 +44,7 @@
 ---
 
 ## 📸 Interface & Demo
-![Sofia AI Dashboard](https://via.placeholder.com/800x400?text=Dashboard+Screenshot)
+![Sofia AI Dashboard](https://ajayyanshu.github.io/Sofia-AI/logo/image.PNG)
 
 ---
 
