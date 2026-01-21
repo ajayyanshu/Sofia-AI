@@ -723,6 +723,64 @@ def extract_text_from_docx(docx_bytes):
         print(f"Error extracting DOCX text: {e}")
         return ""
 
+# --- Helper: Web Search Function (Global) ---
+def search_web(query):
+    if not SERPER_API_KEY:
+        return "Web search is disabled because the API key is not configured."
+
+    url = "https://google.serper.dev/search"
+    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+    
+    # Internal function to execute search
+    def execute_serper_search(q):
+        try:
+            print(f"🔍 Searching Serper for: {q}") 
+            response = requests.post(url, headers=headers, json={"q": q})
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"❌ Serper API Error: {e}")
+            return None
+
+    # Logic to extract snippets
+    def extract_snippets(api_results):
+        extracted = []
+        if not api_results: return []
+        
+        # Check for 'news'
+        if "news" in api_results:
+            for item in api_results.get("news", [])[:3]:
+                extracted.append(f"News ({item.get('date', 'Recent')}): {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
+        
+        # Check for 'organic'
+        if "organic" in api_results:
+            for item in api_results.get("organic", [])[:5]:
+                extracted.append(f"Title: {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
+        
+        # Check for 'answerBox'
+        if "answerBox" in api_results:
+            answer = api_results["answerBox"].get("snippet") or api_results["answerBox"].get("answer")
+            if answer: extracted.insert(0, f"Direct Answer: {answer}")
+            
+        return extracted
+
+    # Attempt 1: Original Query
+    results = execute_serper_search(query)
+    snippets = extract_snippets(results)
+
+    # Attempt 2: Fallback (If no results, try broader search)
+    if not snippets:
+        print("⚠️ No results found. Trying Fallback Search...")
+        # Fallback: remove years like 2025/2026 to get general latest news
+        fallback_query = f"latest cybersecurity breaches news {query.replace('2025', '').replace('2026', '')}"
+        results = execute_serper_search(fallback_query)
+        snippets = extract_snippets(results)
+
+    if snippets:
+        return "\n\n---\n\n".join(snippets)
+    else:
+        return "No relevant web results found."
+
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
@@ -793,7 +851,7 @@ def chat():
 
     def call_api(url, headers, json_payload, api_name):
         try:
-            response = requests.post(url, headers=headers, json=json_payload)
+            response = requests.post(url, headers=headers, json_payload)
             response.raise_for_status()
             result = response.json()
             if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
@@ -803,96 +861,6 @@ def chat():
         except Exception as e:
             print(f"Error calling {api_name} API: {e}")
             return None
-
-   def search_web(query):
-        if not SERPER_API_KEY:
-            return "Web search is disabled because the API key is not configured."
-
-        url = "https://google.serper.dev/search"
-        headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-        
-        # Function to execute search
-        def execute_serper_search(q):
-            try:
-                print(f"🔍 Searching Serper for: {q}") # Debug Log
-                response = requests.post(url, headers=headers, json={"q": q})
-                response.raise_for_status()
-                return response.json()
-            except Exception as e:
-                print(f"❌ Serper API Error: {e}")
-                return None
-
-        # Attempt 1: Original Query
-        results = execute_serper_search(query)
-        
-        # Logic to extract snippets
-        def extract_snippets(api_results):
-            extracted = []
-            if not api_results: return []
-            
-            # Check for 'news'
-            if "news" in api_results:
-                for item in api_results.get("news", [])[:3]:
-                    extracted.append(f"News ({item.get('date', 'Recent')}): {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
-            
-            # Check for 'organic'
-            if "organic" in api_results:
-                for item in api_results.get("organic", [])[:5]:
-                    extracted.append(f"Title: {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
-            
-            # Check for 'answerBox' (Direct Answers)
-            if "answerBox" in api_results:
-                answer = api_results["answerBox"].get("snippet") or api_results["answerBox"].get("answer")
-                if answer: extracted.insert(0, f"Direct Answer: {answer}")
-                
-            return extracted
-
-        snippets = extract_snippets(results)
-
-        # Attempt 2: Fallback (If no results found, try a broader search)
-        if not snippets:
-            print("⚠️ No results found. Trying Fallback Search...")
-            # Fallback logic: Remove years or specific constraints, or just search key terms
-            # Simple fallback: Search for the last 3-4 words or just "Latest news on [topic]"
-            # For this demo, let's try a safe fallback
-            fallback_query = f"latest news {query.replace('2025', '').replace('2026', '')}" 
-            
-            results = execute_serper_search(fallback_query)
-            snippets = extract_snippets(results)
-
-        if snippets:
-            return "\n\n---\n\n".join(snippets)
-        else:
-            return "No relevant web results found. (API returned 0 results)"
-            
-            # --- IMPROVED SEARCH RESULTS ---
-            # Try to fetch from 'news' first for latest events
-            if "news" in results:
-                for item in results.get("news", [])[:3]:
-                    title = item.get("title", "No Title")
-                    snippet = item.get("snippet", "No Snippet")
-                    link = item.get("link", "No Link")
-                    date_info = item.get("date", "")
-                    snippets.append(f"News ({date_info}): {title}\nSnippet: {snippet}\nSource: {link}")
-
-            # Then fetch organic results
-            if "organic" in results:
-                for item in results.get("organic", [])[:5]:
-                    title = item.get("title", "No Title")
-                    snippet = item.get("snippet", "No Snippet")
-                    link = item.get("link", "No Link")
-                    snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
-            
-            if snippets:
-                return "\n\n---\n\n".join(snippets)
-            elif "answerBox" in results:
-                answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
-                if answer: return f"Direct Answer: {answer}"
-            
-            return "No relevant web results found."
-        except Exception as e:
-            print(f"Error calling Serper API: {e}")
-            return f"An error occurred during the web search: {e}"
 
     def search_library(user_id, query):
         if not library_collection: return None
@@ -968,9 +936,8 @@ def chat():
                     web_search_context = "Daily web search limit reached."
                 else:
                     web_search_context = search_web(user_message)
-                    # --- FIXED: ONLY INCREMENT IF SEARCH WAS SUCCESSFUL ---
-                    # Only increment count if we actually got results (didn't get failure message or error)
-                    if "No relevant web results found" not in web_search_context and "An error occurred" not in web_search_context:
+                    # --- CHECK: Only increment if we actually got results ---
+                    if "No relevant web results found" not in web_search_context:
                         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
             else:
                 web_search_context = search_web(user_message)
