@@ -851,7 +851,8 @@ def chat():
 
     def call_api(url, headers, json_payload, api_name):
         try:
-            response = requests.post(url, headers=headers, json_payload)
+            # FIX: Use json=json_payload (keyword argument)
+            response = requests.post(url, headers=headers, json=json_payload)
             response.raise_for_status()
             result = response.json()
             if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
