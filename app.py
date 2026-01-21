@@ -816,17 +816,31 @@ def chat():
             response.raise_for_status()
             results = response.json()
             snippets = []
+            
+            # --- IMPROVED SEARCH RESULTS ---
+            # Try to fetch from 'news' first for latest events
+            if "news" in results:
+                for item in results.get("news", [])[:3]:
+                    title = item.get("title", "No Title")
+                    snippet = item.get("snippet", "No Snippet")
+                    link = item.get("link", "No Link")
+                    date_info = item.get("date", "")
+                    snippets.append(f"News ({date_info}): {title}\nSnippet: {snippet}\nSource: {link}")
+
+            # Then fetch organic results
             if "organic" in results:
                 for item in results.get("organic", [])[:5]:
                     title = item.get("title", "No Title")
                     snippet = item.get("snippet", "No Snippet")
                     link = item.get("link", "No Link")
                     snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
+            
             if snippets:
                 return "\n\n---\n\n".join(snippets)
             elif "answerBox" in results:
                 answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
                 if answer: return f"Direct Answer: {answer}"
+            
             return "No relevant web results found."
         except Exception as e:
             print(f"Error calling Serper API: {e}")
@@ -906,7 +920,10 @@ def chat():
                     web_search_context = "Daily web search limit reached."
                 else:
                     web_search_context = search_web(user_message)
-                    users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
+                    # --- FIXED: ONLY INCREMENT IF SEARCH WAS SUCCESSFUL ---
+                    # Only increment count if we actually got results (didn't get failure message or error)
+                    if "No relevant web results found" not in web_search_context and "An error occurred" not in web_search_context:
+                        users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
             else:
                 web_search_context = search_web(user_message)
         
