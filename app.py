@@ -804,18 +804,66 @@ def chat():
             print(f"Error calling {api_name} API: {e}")
             return None
 
-    def search_web(query):
+   def search_web(query):
         if not SERPER_API_KEY:
             return "Web search is disabled because the API key is not configured."
 
         url = "https://google.serper.dev/search"
-        payload = json.dumps({"q": query})
         headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-        try:
-            response = requests.post(url, headers=headers, data=payload)
-            response.raise_for_status()
-            results = response.json()
-            snippets = []
+        
+        # Function to execute search
+        def execute_serper_search(q):
+            try:
+                print(f"🔍 Searching Serper for: {q}") # Debug Log
+                response = requests.post(url, headers=headers, json={"q": q})
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                print(f"❌ Serper API Error: {e}")
+                return None
+
+        # Attempt 1: Original Query
+        results = execute_serper_search(query)
+        
+        # Logic to extract snippets
+        def extract_snippets(api_results):
+            extracted = []
+            if not api_results: return []
+            
+            # Check for 'news'
+            if "news" in api_results:
+                for item in api_results.get("news", [])[:3]:
+                    extracted.append(f"News ({item.get('date', 'Recent')}): {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
+            
+            # Check for 'organic'
+            if "organic" in api_results:
+                for item in api_results.get("organic", [])[:5]:
+                    extracted.append(f"Title: {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
+            
+            # Check for 'answerBox' (Direct Answers)
+            if "answerBox" in api_results:
+                answer = api_results["answerBox"].get("snippet") or api_results["answerBox"].get("answer")
+                if answer: extracted.insert(0, f"Direct Answer: {answer}")
+                
+            return extracted
+
+        snippets = extract_snippets(results)
+
+        # Attempt 2: Fallback (If no results found, try a broader search)
+        if not snippets:
+            print("⚠️ No results found. Trying Fallback Search...")
+            # Fallback logic: Remove years or specific constraints, or just search key terms
+            # Simple fallback: Search for the last 3-4 words or just "Latest news on [topic]"
+            # For this demo, let's try a safe fallback
+            fallback_query = f"latest news {query.replace('2025', '').replace('2026', '')}" 
+            
+            results = execute_serper_search(fallback_query)
+            snippets = extract_snippets(results)
+
+        if snippets:
+            return "\n\n---\n\n".join(snippets)
+        else:
+            return "No relevant web results found. (API returned 0 results)"
             
             # --- IMPROVED SEARCH RESULTS ---
             # Try to fetch from 'news' first for latest events
