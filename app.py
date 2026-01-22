@@ -871,7 +871,7 @@ def delete_library_item(item_id):
         print(f"Error deleting library item: {e}")
         return jsonify({"error": "Could not delete library item"}), 500
 
-# --- Chat Logic ---
+# --- Chat Logic with Auto Fallback ---
 
 @app.route('/chat', methods=['POST'])
 @login_required
@@ -935,6 +935,9 @@ def chat():
         is_code_file = False
         code_file_name = ""
         image_files = []
+        has_images = False
+        has_documents = False
+        has_code_files = False
         
         # Code file extensions
         code_extensions = ['.py', '.js', '.java', '.c', '.cpp', '.h', '.html', 
@@ -958,6 +961,7 @@ def chat():
             # Check if it's a code file
             if any(file_name.lower().endswith(ext) for ext in code_extensions):
                 is_code_file = True
+                has_code_files = True
                 code_file_name = file_name
                 try:
                     code_bytes = base64.b64decode(file_data)
@@ -978,6 +982,7 @@ def chat():
                         'filename': file_name,
                         'type': file_type
                     })
+                    has_images = True
                 except Exception as e:
                     print(f"Error processing image: {e}")
                     extracted_texts.append(f"Error reading image '{file_name}': {str(e)}")
@@ -987,6 +992,7 @@ def chat():
                     fbytes = base64.b64decode(file_data)
                     text = extract_text_from_pdf(fbytes)
                     extracted_texts.append(f"PDF Content from '{file_name}':\n{text[:5000]}")
+                    has_documents = True
                 except Exception as e:
                     print(f"Error extracting PDF text: {e}")
                     extracted_texts.append(f"Error reading PDF '{file_name}': {str(e)}")
@@ -996,6 +1002,7 @@ def chat():
                     fbytes = base64.b64decode(file_data)
                     text = extract_text_from_docx(fbytes)
                     extracted_texts.append(f"Document Content from '{file_name}':\n{text[:5000]}")
+                    has_documents = True
                 except Exception as e:
                     print(f"Error extracting DOCX text: {e}")
                     extracted_texts.append(f"Error reading document '{file_name}': {str(e)}")
@@ -1065,11 +1072,16 @@ def chat():
 
         openai_history.append({"role": "user", "content": combined_text})
 
-        # Try Gemini first, fall back to Groq if it fails
+        # Flag to track if we should try Groq after Gemini failure
+        use_groq_fallback = False
+        gemini_failed = False
+        
+        # Try Gemini first for all file types
         gemini_response = None
         
         # Handle image files with multimodal Gemini
         if image_files:
+            print("🔍 Attempting to process images with Gemini...")
             try:
                 model = genai.GenerativeModel("gemini-1.5-flash")
                 prompt_parts = [combined_text] if combined_text else ["Analyze this image"]
@@ -1084,13 +1096,16 @@ def chat():
                 
                 response = model.generate_content(prompt_parts)
                 gemini_response = response.text
+                print("✅ Gemini successfully processed images")
                 
             except Exception as e:
-                print(f"Multimodal Gemini error with images: {e}")
-                gemini_response = f"Error analyzing images: {str(e)}"
+                print(f"❌ Gemini failed to process images: {e}")
+                gemini_failed = True
+                use_groq_fallback = True
         
-        # Code vulnerability analysis
+        # Code vulnerability analysis with Gemini
         elif is_code_file and code_file_content:
+            print("🔍 Attempting code security analysis with Gemini...")
             try:
                 language = detect_code_language(code_file_name, code_file_content)
                 
@@ -1118,43 +1133,47 @@ def chat():
                 ### 🛡️ Secure Coding Practices:
                 [General security guidelines for {language} development]
                 
-                Focus on language-specific vulnerabilities for {language} including:
-                - SQL injection
-                - Cross-site scripting (XSS)
-                - Cross-site request forgery (CSRF)
-                - Authentication bypass
-                - Insecure dependencies
-                - Hardcoded secrets
-                - Input validation issues
-                - Buffer overflows
-                - Race conditions
-                - Insecure deserialization"""
+                Focus on language-specific vulnerabilities for {language}."""
                 
                 if GOOGLE_API_KEY:
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     full_prompt = f"{CODE_SECURITY_PROMPT}\n\n{combined_text}"
                     response = gemini_model.generate_content(full_prompt)
                     gemini_response = response.text
-                    
-                elif GROQ_API_KEY:
-                    code_scan_history = [
-                        {"role": "system", "content": CODE_SECURITY_PROMPT},
-                        {"role": "user", "content": combined_text}
-                    ]
-                    
-                    gemini_response = call_api(
-                        "https://api.groq.com/openai/v1/chat/completions", 
-                        {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                        {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, 
-                        "Groq (Code Scan)"
-                    )
+                    print("✅ Gemini successfully analyzed code")
                     
             except Exception as e:
-                print(f"Code security analysis error: {e}")
-                gemini_response = f"Error during code security analysis: {str(e)}"
+                print(f"❌ Gemini failed to analyze code: {e}")
+                gemini_failed = True
+                use_groq_fallback = True
         
-        # Regular text processing (no images, no code files)
-        elif not image_files and not is_code_file and combined_text.strip():
+        # Document analysis with Gemini (PDFs, Word docs, text files)
+        elif has_documents and extracted_texts:
+            print("🔍 Attempting to analyze documents with Gemini...")
+            try:
+                DOCUMENT_ANALYSIS_PROMPT = """You are 'Sofia AI', an expert document analyzer. 
+                Analyze the provided document content and provide:
+                1. Summary of the document
+                2. Key points and findings
+                3. Important data or statistics mentioned
+                4. Recommendations or conclusions
+                
+                Be thorough and extract as much useful information as possible."""
+                
+                gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                full_prompt = f"{DOCUMENT_ANALYSIS_PROMPT}\n\n{combined_text}"
+                response = gemini_model.generate_content(full_prompt)
+                gemini_response = response.text
+                print("✅ Gemini successfully analyzed documents")
+                
+            except Exception as e:
+                print(f"❌ Gemini failed to analyze documents: {e}")
+                gemini_failed = True
+                use_groq_fallback = True
+        
+        # Regular text processing with Gemini (no files or files successfully processed)
+        elif not gemini_failed and combined_text.strip():
+            print("🔍 Attempting text processing with Gemini...")
             try:
                 if (web_search_context or library_search_context):
                     SYSTEM_PROMPT = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
@@ -1168,6 +1187,7 @@ def chat():
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     response = gemini_model.generate_content(full_context)
                     gemini_response = response.text
+                    print("✅ Gemini successfully processed text with context")
                     
                 else:
                     # General chat - use Gemini with history
@@ -1178,52 +1198,176 @@ def chat():
                     else:
                         response = gemini_model.generate_content(combined_text)
                     gemini_response = response.text
+                    print("✅ Gemini successfully processed text")
                     
             except Exception as e:
-                print(f"Gemini API error: {e}")
-                gemini_response = None
-
-        # If Gemini failed or wasn't used, try Groq as fallback
-        if not gemini_response and not image_files and combined_text.strip() and GROQ_API_KEY:
-            if (web_search_context or library_search_context):
-                SYSTEM_PROMPT = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
-                context_parts = []
-                if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
-                if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
+                print(f"❌ Gemini failed to process text: {e}")
+                gemini_failed = True
+                use_groq_fallback = True
+        
+        # ================================
+        # GROQ FALLBACK LOGIC
+        # ================================
+        groq_response = None
+        
+        # If Gemini failed and we have Groq API key, try Groq
+        if use_groq_fallback and GROQ_API_KEY:
+            print("🔄 Switching to Groq API as fallback...")
+            
+            # Handle different types of content with Groq
+            if has_images:
+                # For images, we can only analyze the extracted text
+                IMAGE_ANALYSIS_PROMPT = """You are 'Sofia AI'. The user has uploaded images but I couldn't analyze them directly. 
+                Please help the user with their query based on any text description they provided about the images.
                 
-                search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, 
-                                            {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{combined_text}"}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
-                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                                       {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, 
-                                       "Groq (Contextual Search)")
+                If the user asked about image content, explain that image analysis is currently unavailable but you can help with text-based queries."""
+                
+                groq_history = [{"role": "system", "content": IMAGE_ANALYSIS_PROMPT}]
+                if combined_text:
+                    groq_history.append({"role": "user", "content": combined_text})
+                
+                groq_response = call_api(
+                    "https://api.groq.com/openai/v1/chat/completions", 
+                    {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                    {"model": "llama-3.1-8b-instant", "messages": groq_history}, 
+                    "Groq (Image Fallback)"
+                )
+                
+            elif is_code_file and code_file_content:
+                # Code analysis with Groq
+                language = detect_code_language(code_file_name, code_file_content)
+                
+                CODE_SECURITY_PROMPT_GROQ = f"""You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. 
+                Analyzing {language} code for security vulnerabilities.
+                
+                Provide analysis in this format:
+                
+                ## Security Analysis Report - {code_file_name}
+                
+                ### Language Detected: {language}
+                
+                ### Vulnerabilities Found:
+                
+                ### Affected Code Lines:
+                
+                ### Risk Assessment:
+                
+                ### Recommended Fixes:
+                
+                ### Secure Coding Practices:"""
+                
+                groq_history = [
+                    {"role": "system", "content": CODE_SECURITY_PROMPT_GROQ},
+                    {"role": "user", "content": combined_text}
+                ]
+                
+                groq_response = call_api(
+                    "https://api.groq.com/openai/v1/chat/completions", 
+                    {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                    {"model": "llama-3.1-70b-versatile", "messages": groq_history}, 
+                    "Groq (Code Scan Fallback)"
+                )
+                
+            elif has_documents:
+                # Document analysis with Groq
+                DOCUMENT_ANALYSIS_PROMPT_GROQ = """You are 'Sofia AI', an expert document analyzer. 
+                Analyze the provided document content and provide:
+                1. Summary of the document
+                2. Key points and findings
+                3. Important data or statistics mentioned
+                4. Recommendations or conclusions"""
+                
+                groq_history = [
+                    {"role": "system", "content": DOCUMENT_ANALYSIS_PROMPT_GROQ},
+                    {"role": "user", "content": combined_text}
+                ]
+                
+                groq_response = call_api(
+                    "https://api.groq.com/openai/v1/chat/completions", 
+                    {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                    {"model": "llama-3.1-8b-instant", "messages": groq_history}, 
+                    "Groq (Document Analysis Fallback)"
+                )
+                
             else:
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
-                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                                       {"model": "llama-3.1-8b-instant", "messages": openai_history}, 
-                                       "Groq")
-        elif gemini_response:
-            ai_response = gemini_response
-
-        # Handle YouTube transcript analysis
+                # General text processing with Groq
+                if (web_search_context or library_search_context):
+                    SYSTEM_PROMPT_GROQ = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
+                    context_parts = []
+                    if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
+                    if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
+                    
+                    groq_history = [{"role": "system", "content": SYSTEM_PROMPT_GROQ}]
+                    groq_history.append({"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{combined_text}"})
+                    
+                    groq_response = call_api(
+                        "https://api.groq.com/openai/v1/chat/completions", 
+                        {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                        {"model": "llama-3.1-8b-instant", "messages": groq_history}, 
+                        "Groq (Contextual Search Fallback)"
+                    )
+                else:
+                    # General chat fallback
+                    groq_response = call_api(
+                        "https://api.groq.com/openai/v1/chat/completions", 
+                        {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                        {"model": "llama-3.1-8b-instant", "messages": openai_history}, 
+                        "Groq (General Fallback)"
+                    )
+            
+            if groq_response:
+                print("✅ Groq fallback successful")
+                # Add fallback notice to response
+                groq_response = f"⚠️ *Note: Using Groq API as Gemini was unavailable*\n\n{groq_response}"
+        
+        # Handle YouTube transcript analysis (try both APIs)
         if not ai_response and ("youtube.com" in user_message or "youtu.be" in user_message):
+            print("🔍 Attempting YouTube analysis...")
             try:
                 video_id = get_video_id(user_message)
                 transcript = get_youtube_transcript(video_id) if video_id else None
                 if transcript: 
-                    model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                    prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
-                    response = model.generate_content(prompt)
-                    ai_response = response.text
+                    # Try Gemini first
+                    try:
+                        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                        prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                        response = model.generate_content(prompt)
+                        ai_response = response.text
+                        print("✅ Gemini successfully analyzed YouTube transcript")
+                    except Exception as e:
+                        print(f"❌ Gemini failed for YouTube: {e}")
+                        # Try Groq fallback
+                        if GROQ_API_KEY:
+                            youtube_prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                            groq_history = [
+                                {"role": "system", "content": "You are a YouTube video summarizer."},
+                                {"role": "user", "content": youtube_prompt}
+                            ]
+                            ai_response = call_api(
+                                "https://api.groq.com/openai/v1/chat/completions", 
+                                {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                                {"model": "llama-3.1-8b-instant", "messages": groq_history}, 
+                                "Groq (YouTube Fallback)"
+                            )
+                            if ai_response:
+                                ai_response = f"⚠️ *Note: Using Groq API as Gemini was unavailable*\n\n{ai_response}"
                 else: 
                     ai_response = "Sorry, couldn't get the transcript for this YouTube video."
             except Exception as e:
                 print(f"YouTube analysis error: {e}")
                 ai_response = "Sorry, I encountered an error trying to analyze the YouTube video."
-
-        # Final fallback if all APIs failed
-        if not ai_response:
-            ai_response = "Sorry, I'm having trouble generating a response. Please try again."
+        
+        # Determine final response
+        if gemini_response:
+            ai_response = gemini_response
+        elif groq_response:
+            ai_response = groq_response
+        elif not ai_response:
+            # If neither API worked
+            if has_images or has_documents or has_code_files:
+                ai_response = "Sorry, I couldn't analyze your files. Both Gemini and Groq APIs are currently unavailable. Please try again later."
+            else:
+                ai_response = "Sorry, I'm having trouble generating a response. Please try again."
 
         return jsonify({'response': ai_response})
         
