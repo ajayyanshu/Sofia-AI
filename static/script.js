@@ -2352,3 +2352,4 @@ document.addEventListener('DOMContentLoaded', initializeApp);
 // Export functions for global access (if needed)
 window.removeFile = removeFile;
 window.clearAllFiles = clearAllFiles;
+
