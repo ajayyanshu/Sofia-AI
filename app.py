@@ -239,6 +239,7 @@ def api_signup():
         "session_id": str(uuid.uuid4()),
         "usage_counts": { "messages": 0, "webSearches": 0 },
         "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
+        "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),  # ADDED: Separate web search reset tracking
         "timestamp": datetime.utcnow().isoformat()
     }
     users_collection.insert_one(new_user)
@@ -723,92 +724,38 @@ def extract_text_from_docx(docx_bytes):
         print(f"Error extracting DOCX text: {e}")
         return ""
 
-# --- Helper: Web Search Function (Global) ---
-def search_web(query):
-    if not SERPER_API_KEY:
-        return "Web search is disabled because the API key is not configured."
-
-    url = "https://google.serper.dev/search"
-    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-    
-    # Internal function to execute search
-    def execute_serper_search(q):
-        try:
-            print(f"🔍 Searching Serper for: {q}") 
-            response = requests.post(url, headers=headers, json={"q": q})
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            print(f"❌ Serper API Error: {e}")
-            return None
-
-    # Logic to extract snippets
-    def extract_snippets(api_results):
-        extracted = []
-        if not api_results: return []
-        
-        # Check for 'news'
-        if "news" in api_results:
-            for item in api_results.get("news", [])[:3]:
-                extracted.append(f"News ({item.get('date', 'Recent')}): {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
-        
-        # Check for 'organic'
-        if "organic" in api_results:
-            for item in api_results.get("organic", [])[:5]:
-                extracted.append(f"Title: {item.get('title')}\nSnippet: {item.get('snippet')}\nSource: {item.get('link')}")
-        
-        # Check for 'answerBox'
-        if "answerBox" in api_results:
-            answer = api_results["answerBox"].get("snippet") or api_results["answerBox"].get("answer")
-            if answer: extracted.insert(0, f"Direct Answer: {answer}")
-            
-        return extracted
-
-    # Attempt 1: Original Query
-    results = execute_serper_search(query)
-    snippets = extract_snippets(results)
-
-    # Attempt 2: Fallback (If no results, try broader search)
-    if not snippets:
-        print("⚠️ No results found. Trying Fallback Search...")
-        # Fallback: remove years like 2025/2026 to get general latest news
-        fallback_query = f"latest cybersecurity breaches news {query.replace('2025', '').replace('2026', '')}"
-        results = execute_serper_search(fallback_query)
-        snippets = extract_snippets(results)
-
-    if snippets:
-        return "\n\n---\n\n".join(snippets)
-    else:
-        return "No relevant web results found."
-
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
-    # Free plan usage check and reset logic
+    # Free plan usage check and reset logic - FIXED VERSION
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
+        last_web_reset_str = user_data.get('last_web_reset', '1970-01-01')
         last_reset_date = datetime.strptime(last_reset_str, '%Y-%m-%d').date()
+        last_web_reset_date = datetime.strptime(last_web_reset_str, '%Y-%m-%d').date()
         today = datetime.utcnow().date()
 
-        # Check for month change (for message reset) and day change (for web search reset)
+        # Check for month change (for message reset)
         if last_reset_date.month < today.month or last_reset_date.year < today.year:
-            # New month: reset both message and web search counts
+            # New month: reset message count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
-                    'usage_counts': {'messages': 0, 'webSearches': 0},
+                    'usage_counts.messages': 0,
                     'last_usage_reset': today.strftime('%Y-%m-%d')
                 }}
             )
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-        elif last_reset_date < today:
-            # New day: reset only web search count
+        
+        # Check for day change (for web search reset) - SEPARATE TRACKING
+        if last_web_reset_date < today:
+            # New day: reset web search count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
                     'usage_counts.webSearches': 0,
-                    'last_usage_reset': today.strftime('%Y-%m-%d')
+                    'last_web_reset': today.strftime('%Y-%m-%d')
                 }}
             )
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -851,7 +798,6 @@ def chat():
 
     def call_api(url, headers, json_payload, api_name):
         try:
-            # FIX: Use json=json_payload (keyword argument)
             response = requests.post(url, headers=headers, json=json_payload)
             response.raise_for_status()
             result = response.json()
@@ -862,6 +808,34 @@ def chat():
         except Exception as e:
             print(f"Error calling {api_name} API: {e}")
             return None
+
+    def search_web(query):
+        if not SERPER_API_KEY:
+            return "Web search is disabled because the API key is not configured."
+
+        url = "https://google.serper.dev/search"
+        payload = json.dumps({"q": query})
+        headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+        try:
+            response = requests.post(url, headers=headers, data=payload)
+            response.raise_for_status()
+            results = response.json()
+            snippets = []
+            if "organic" in results:
+                for item in results.get("organic", [])[:5]:
+                    title = item.get("title", "No Title")
+                    snippet = item.get("snippet", "No Snippet")
+                    link = item.get("link", "No Link")
+                    snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
+            if snippets:
+                return "\n\n---\n\n".join(snippets)
+            elif "answerBox" in results:
+                answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
+                if answer: return f"Direct Answer: {answer}"
+            return "No relevant web results found."
+        except Exception as e:
+            print(f"Error calling Serper API: {e}")
+            return f"An error occurred during the web search: {e}"
 
     def search_library(user_id, query):
         if not library_collection: return None
@@ -915,31 +889,17 @@ def chat():
                 if auto_mode in ['web_search', 'security_search']:
                     library_search_context = search_library(ObjectId(current_user.id), user_message)
 
-        # Web search with daily limit for free users
+        # Web search with daily limit for free users - FIXED VERSION
         if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
             if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
                 searches_used = user_data.get('usage_counts', {}).get('webSearches', 0)
                 
-                # Check if it's a new day for web search reset
-                last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
-                last_reset_date = datetime.strptime(last_reset_str, '%Y-%m-%d').date()
-                today = datetime.utcnow().date()
-                
-                if last_reset_date < today:
-                    users_collection.update_one(
-                        {'_id': ObjectId(current_user.id)},
-                        {'$set': {'usage_counts.webSearches': 0}}
-                    )
-                    searches_used = 0
-                
                 if searches_used >= 1:
-                    web_search_context = "Daily web search limit reached."
+                    web_search_context = "Daily web search limit reached (1 per day)."
                 else:
                     web_search_context = search_web(user_message)
-                    # --- CHECK: Only increment if we actually got results ---
-                    if "No relevant web results found" not in web_search_context:
-                        users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
+                    users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
             else:
                 web_search_context = search_web(user_message)
         
