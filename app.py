@@ -23,8 +23,6 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
 
-# Note: We removed Flask-Mail imports as we are now using Brevo API directly via requests
-
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
@@ -42,7 +40,7 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
 # --- Brevo (Email) Configuration ---
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com") # Must be verified in Brevo
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com")
 
 if not BREVO_API_KEY:
     print("CRITICAL WARNING: BREVO_API_KEY not found. Email features will not work.")
@@ -156,7 +154,7 @@ def send_brevo_email(to_email, subject, html_content):
 
     try:
         response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status() # Raise error for bad status codes
+        response.raise_for_status()
         print(f"✅ Email sent successfully to {to_email}")
         return True
     except Exception as e:
@@ -168,13 +166,222 @@ def send_async_brevo_email(app, to_email, subject, html_content):
     with app.app_context():
         send_brevo_email(to_email, subject, html_content)
 
+# --- Helper Functions ---
+
+def validate_file_size(file_data, max_size_mb=10):
+    """Validate file size (in MB)"""
+    size_bytes = len(file_data) * 3 / 4
+    size_mb = size_bytes / (1024 * 1024)
+    
+    if size_mb > max_size_mb:
+        return False, f"File too large ({size_mb:.2f}MB). Max size is {max_size_mb}MB."
+    return True, None
+
+def detect_code_language(filename, content):
+    """Detect programming language from filename and content"""
+    extension_map = {
+        '.py': 'Python',
+        '.js': 'JavaScript',
+        '.java': 'Java',
+        '.c': 'C',
+        '.cpp': 'C++',
+        '.h': 'C/C++ Header',
+        '.html': 'HTML',
+        '.css': 'CSS',
+        '.json': 'JSON',
+        '.md': 'Markdown',
+        '.sh': 'Shell Script',
+        '.rb': 'Ruby',
+        '.go': 'Go',
+        '.php': 'PHP',
+        '.swift': 'Swift',
+        '.kt': 'Kotlin',
+        '.ts': 'TypeScript',
+        '.jsx': 'React JSX',
+        '.tsx': 'React TSX',
+        '.vue': 'Vue.js',
+        '.rb': 'Ruby',
+        '.pl': 'Perl',
+        '.r': 'R',
+        '.scala': 'Scala',
+        '.rs': 'Rust',
+        '.ex': 'Elixir',
+        '.exs': 'Elixir Script',
+        '.erl': 'Erlang'
+    }
+    
+    for ext, lang in extension_map.items():
+        if filename.lower().endswith(ext):
+            return lang
+    
+    # Try to detect from content if extension not recognized
+    if '<?php' in content[:100]:
+        return 'PHP'
+    elif 'def ' in content[:100] or 'import ' in content[:100]:
+        return 'Python'
+    elif 'function' in content[:100] or 'const ' in content[:100] or 'let ' in content[:100]:
+        return 'JavaScript'
+    elif 'public class' in content[:100]:
+        return 'Java'
+    elif '#include' in content[:100]:
+        return 'C/C++'
+    elif '<!DOCTYPE html>' in content[:100] or '<html' in content[:100]:
+        return 'HTML'
+    
+    return 'Unknown'
+
+def extract_text_from_pdf(pdf_bytes):
+    try:
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        return "".join(page.get_text() for page in pdf_document)
+    except Exception as e:
+        print(f"Error extracting PDF text: {e}")
+        return ""
+
+def extract_text_from_docx(docx_bytes):
+    try:
+        document = docx.Document(io.BytesIO(docx_bytes))
+        return "\n".join([para.text for para in document.paragraphs])
+    except Exception as e:
+        print(f"Error extracting DOCX text: {e}")
+        return ""
+
+def get_file_from_github(filename):
+    if not all([GITHUB_USER, GITHUB_REPO]):
+        print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
+        return None
+    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading from GitHub: {e}")
+        return None
+
+def get_video_id(video_url):
+    match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
+    return match.group(1) if match else None
+
+def get_youtube_transcript(video_id):
+    try:
+        return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
+    except Exception as e:
+        print(f"Error getting YouTube transcript: {e}")
+        return None
+
+def call_api(url, headers, json_payload, api_name):
+    try:
+        response = requests.post(url, headers=headers, json=json_payload)
+        response.raise_for_status()
+        result = response.json()
+        if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
+             return result['choices'][0]['message']['content']
+        else:
+            return None
+    except Exception as e:
+        print(f"Error calling {api_name} API: {e}")
+        return None
+
+def search_web(query):
+    if not SERPER_API_KEY:
+        return "Web search is disabled because the API key is not configured."
+
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({"q": query})
+    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        results = response.json()
+        snippets = []
+        if "organic" in results:
+            for item in results.get("organic", [])[:5]:
+                title = item.get("title", "No Title")
+                snippet = item.get("snippet", "No Snippet")
+                link = item.get("link", "No Link")
+                snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
+        if snippets:
+            return "\n\n---\n\n".join(snippets)
+        elif "answerBox" in results:
+            answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
+            if answer: return f"Direct Answer: {answer}"
+        return "No relevant web results found."
+    except Exception as e:
+        print(f"Error calling Serper API: {e}")
+        return f"An error occurred during the web search: {e}"
+
+def search_library(user_id, query):
+    if not library_collection: return None
+    try:
+        keywords = re.split(r'\s+', query)
+        regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
+        items_cursor = library_collection.find({
+            "user_id": user_id,
+            "extracted_text": {"$regex": regex_pattern, "$options": "i"}
+        }).limit(3)
+        snippets = []
+        for item in items_cursor:
+            filename = item.get("filename", "Untitled")
+            snippet = item.get("extracted_text", "")
+            context_snippet = snippet[:300]
+            snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
+        if snippets: return "\n\n---\n\n".join(snippets)
+        else: return None
+    except Exception as e:
+        return None
+
+def should_auto_search(user_message):
+    msg_lower = user_message.lower().strip()
+    security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
+    code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
+    general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
+    chat_keywords = ['hi', 'hello', 'thanks']
+    if any(msg_lower.startswith(k) for k in chat_keywords): return None
+    if any(k in msg_lower for k in security_keywords): return 'security_search'
+    if any(k in user_message for k in code_keywords): return 'code_security_scan'
+    if any(k in msg_lower for k in general_search_keywords): return 'web_search'
+    if len(user_message.split()) > 6: return 'web_search'
+    return None
+
+def get_ai_summary(text_content):
+    if not GOOGLE_API_KEY:
+        return "Summary generation skipped: AI not configured."
+    if not text_content or text_content.isspace():
+        return "No text content to summarize."
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash-lite") 
+        max_length = 80000 
+        if len(text_content) > max_length:
+            text_content = text_content[:max_length]
+        prompt = (
+            "You are an expert summarizer. Please provide a concise, one-paragraph summary "
+            "of the following document. Focus on the main ideas and key takeaways.\n\n"
+            f"--- DOCUMENT START ---\n{text_content}\n--- DOCUMENT END ---"
+        )
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"AI_SUMMARY_ERROR: {e}")
+        return f"Could not generate summary. Error: {e}"
+
+def run_ai_summary_in_background(app, item_id, text_content):
+    with app.app_context():
+        summary = get_ai_summary(text_content)
+        if library_collection:
+            try:
+                library_collection.update_one(
+                    {"_id": ObjectId(item_id)},
+                    {"$set": {"ai_summary": summary, "ai_summary_status": "completed"}}
+                )
+            except Exception as e:
+                print(f"BACKGROUND_MONGO_ERROR: {e}")
 
 # --- Page Rendering Routes ---
 
 @app.route('/')
 @login_required
 def home():
-    """Renders the main chat application."""
     if not current_user.is_verified:
         logout_user()
         return redirect(url_for('login_page', error="Please verify your email address."))
@@ -182,14 +389,12 @@ def home():
 
 @app.route('/login.html', methods=['GET'])
 def login_page():
-    """Renders the login page."""
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/signup.html', methods=['GET'])
 def signup_page():
-    """Renders the signup page."""
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     return render_template('signup.html')
@@ -225,7 +430,6 @@ def api_signup():
     if users_collection.find_one({"email": email}):
         return jsonify({'success': False, 'error': 'An account with this email already exists.'}), 409
 
-    # Generate a 6-digit OTP code
     otp_code = str(random.randint(100000, 999999))
 
     new_user = {
@@ -235,16 +439,15 @@ def api_signup():
         "isAdmin": email == ADMIN_EMAIL, 
         "isPremium": False, 
         "is_verified": False,
-        "verification_token": otp_code, # Store OTP in the verification_token field
+        "verification_token": otp_code,
         "session_id": str(uuid.uuid4()),
         "usage_counts": { "messages": 0, "webSearches": 0 },
         "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
-        "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),  # ADDED: Separate web search reset tracking
+        "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),
         "timestamp": datetime.utcnow().isoformat()
     }
     users_collection.insert_one(new_user)
 
-    # Send Verification Email with OTP
     html_content = f"""
     <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="text-align: center; color: #333;">Welcome to Sofia AI, {name}!</h2>
@@ -262,10 +465,8 @@ def api_signup():
 
     return jsonify({'success': True, 'message': 'OTP sent! Please check your email.'})
 
-
 @app.route('/api/verify_otp', methods=['POST'])
 def api_verify_otp():
-    """Endpoint to verify the 6-digit OTP code."""
     data = request.get_json()
     email = data.get('email')
     otp = data.get('otp')
@@ -276,20 +477,17 @@ def api_verify_otp():
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
 
-    # Find user with matching email and OTP code
     user = users_collection.find_one({"email": email, "verification_token": otp})
 
     if not user:
         return jsonify({'success': False, 'error': 'Invalid or incorrect OTP.'}), 400
 
-    # Update user to verified and remove the OTP token
     users_collection.update_one(
         {"_id": user["_id"]},
         {"$set": {"is_verified": True}, "$unset": {"verification_token": 1}}
     )
 
     return jsonify({'success': True, 'message': 'Account verified successfully!'})
-
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -565,39 +763,6 @@ def delete_chat_by_id(chat_id):
 
 # --- Library CRUD API ---
 
-def get_ai_summary(text_content):
-    if not GOOGLE_API_KEY:
-        return "Summary generation skipped: AI not configured."
-    if not text_content or text_content.isspace():
-        return "No text content to summarize."
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash-lite") 
-        max_length = 80000 
-        if len(text_content) > max_length:
-            text_content = text_content[:max_length]
-        prompt = (
-            "You are an expert summarizer. Please provide a concise, one-paragraph summary "
-            "of the following document. Focus on the main ideas and key takeaways.\n\n"
-            f"--- DOCUMENT START ---\n{text_content}\n--- DOCUMENT END ---"
-        )
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"AI_SUMMARY_ERROR: {e}")
-        return f"Could not generate summary. Error: {e}"
-
-def run_ai_summary_in_background(app, item_id, text_content):
-    with app.app_context():
-        summary = get_ai_summary(text_content)
-        if library_collection:
-            try:
-                library_collection.update_one(
-                    {"_id": ObjectId(item_id)},
-                    {"$set": {"ai_summary": summary, "ai_summary_status": "completed"}}
-                )
-            except Exception as e:
-                print(f"BACKGROUND_MONGO_ERROR: {e}")
-
 @app.route('/library/upload', methods=['POST'])
 @login_required
 def upload_library_item():
@@ -708,26 +873,10 @@ def delete_library_item(item_id):
 
 # --- Chat Logic ---
 
-def extract_text_from_pdf(pdf_bytes):
-    try:
-        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        return "".join(page.get_text() for page in pdf_document)
-    except Exception as e:
-        print(f"Error extracting PDF text: {e}")
-        return ""
-
-def extract_text_from_docx(docx_bytes):
-    try:
-        document = docx.Document(io.BytesIO(docx_bytes))
-        return "\n".join([para.text for para in document.paragraphs])
-    except Exception as e:
-        print(f"Error extracting DOCX text: {e}")
-        return ""
-
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
-    # Free plan usage check and reset logic - FIXED VERSION
+    # Free plan usage check and reset logic
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
@@ -738,7 +887,6 @@ def chat():
 
         # Check for month change (for message reset)
         if last_reset_date.month < today.month or last_reset_date.year < today.year:
-            # New month: reset message count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
@@ -748,9 +896,8 @@ def chat():
             )
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         
-        # Check for day change (for web search reset) - SEPARATE TRACKING
+        # Check for day change (for web search reset)
         if last_web_reset_date < today:
-            # New day: reset web search count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
@@ -772,125 +919,121 @@ def chat():
             
         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.messages': 1}})
 
-    def get_file_from_github(filename):
-        if not all([GITHUB_USER, GITHUB_REPO]):
-            print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
-            return None
-        url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading from GitHub: {e}")
-            return None
-
-    def get_video_id(video_url):
-        match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
-        return match.group(1) if match else None
-
-    def get_youtube_transcript(video_id):
-        try:
-            return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
-        except Exception as e:
-            print(f"Error getting YouTube transcript: {e}")
-            return None
-
-    def call_api(url, headers, json_payload, api_name):
-        try:
-            response = requests.post(url, headers=headers, json=json_payload)
-            response.raise_for_status()
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
-                 return result['choices'][0]['message']['content']
-            else:
-                return None
-        except Exception as e:
-            print(f"Error calling {api_name} API: {e}")
-            return None
-
-    def search_web(query):
-        if not SERPER_API_KEY:
-            return "Web search is disabled because the API key is not configured."
-
-        url = "https://google.serper.dev/search"
-        payload = json.dumps({"q": query})
-        headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-        try:
-            response = requests.post(url, headers=headers, data=payload)
-            response.raise_for_status()
-            results = response.json()
-            snippets = []
-            if "organic" in results:
-                for item in results.get("organic", [])[:5]:
-                    title = item.get("title", "No Title")
-                    snippet = item.get("snippet", "No Snippet")
-                    link = item.get("link", "No Link")
-                    snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
-            if snippets:
-                return "\n\n---\n\n".join(snippets)
-            elif "answerBox" in results:
-                answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
-                if answer: return f"Direct Answer: {answer}"
-            return "No relevant web results found."
-        except Exception as e:
-            print(f"Error calling Serper API: {e}")
-            return f"An error occurred during the web search: {e}"
-
-    def search_library(user_id, query):
-        if not library_collection: return None
-        try:
-            keywords = re.split(r'\s+', query)
-            regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
-            items_cursor = library_collection.find({
-                "user_id": user_id,
-                "extracted_text": {"$regex": regex_pattern, "$options": "i"}
-            }).limit(3)
-            snippets = []
-            for item in items_cursor:
-                filename = item.get("filename", "Untitled")
-                snippet = item.get("extracted_text", "")
-                context_snippet = snippet[:300]
-                snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
-            if snippets: return "\n\n---\n\n".join(snippets)
-            else: return None
-        except Exception as e:
-            return None
-    
-    def should_auto_search(user_message):
-        msg_lower = user_message.lower().strip()
-        security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
-        code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
-        general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
-        chat_keywords = ['hi', 'hello', 'thanks']
-        if any(msg_lower.startswith(k) for k in chat_keywords): return None
-        if any(k in msg_lower for k in security_keywords): return 'security_search'
-        if any(k in user_message for k in code_keywords): return 'code_security_scan'
-        if any(k in msg_lower for k in general_search_keywords): return 'web_search'
-        if len(user_message.split()) > 6: return 'web_search'
-        return None
-
     try:
         data = request.json
         user_message = data.get('text', '')
-        file_data = data.get('fileData')
-        file_type = data.get('fileType', '')
+        files_data = data.get('filesData', [])  # Array of files
         is_temporary = data.get('isTemporary', False)
-        request_mode = data.get('mode') 
+        request_mode = data.get('mode')
         ai_response = None
-        web_search_context = None 
+        web_search_context = None
         library_search_context = None
-        is_multimodal = bool(file_data) or "youtube.com" in user_message or "youtu.be" in user_message or any(k in user_message.lower() for k in PDF_KEYWORDS)
-
+        
+        # Process multiple files
+        extracted_texts = []
+        code_file_content = None
+        is_code_file = False
+        code_file_name = ""
+        image_files = []
+        
+        # Code file extensions
+        code_extensions = ['.py', '.js', '.java', '.c', '.cpp', '.h', '.html', 
+                          '.css', '.json', '.md', '.sh', '.rb', '.go', '.php', 
+                          '.swift', '.kt', '.ts', '.jsx', '.tsx', '.vue', '.pl',
+                          '.r', '.scala', '.rs', '.ex', '.exs', '.erl']
+        
+        for file_item in files_data:
+            file_data = file_item.get('data')
+            file_type = file_item.get('type', '')
+            file_name = file_item.get('name', '')
+            
+            if not file_data:
+                continue
+                
+            # Validate file size
+            is_valid, error_msg = validate_file_size(file_data, max_size_mb=10)
+            if not is_valid:
+                return jsonify({'response': f"Error with file '{file_name}': {error_msg}"}), 400
+            
+            # Check if it's a code file
+            if any(file_name.lower().endswith(ext) for ext in code_extensions):
+                is_code_file = True
+                code_file_name = file_name
+                try:
+                    code_bytes = base64.b64decode(file_data)
+                    code_file_content = code_bytes.decode('utf-8', errors='ignore')
+                except Exception as e:
+                    print(f"Error decoding code file: {e}")
+                    code_file_content = f"Error reading code file: {str(e)}"
+                
+                # Set mode to code security scan
+                request_mode = 'code_security_scan'
+            
+            # Process other file types
+            elif file_type.startswith('image/'):
+                try:
+                    fbytes = base64.b64decode(file_data)
+                    image_files.append({
+                        'bytes': fbytes,
+                        'filename': file_name,
+                        'type': file_type
+                    })
+                except Exception as e:
+                    print(f"Error processing image: {e}")
+                    extracted_texts.append(f"Error reading image '{file_name}': {str(e)}")
+            
+            elif 'pdf' in file_type:
+                try:
+                    fbytes = base64.b64decode(file_data)
+                    text = extract_text_from_pdf(fbytes)
+                    extracted_texts.append(f"PDF Content from '{file_name}':\n{text[:5000]}")
+                except Exception as e:
+                    print(f"Error extracting PDF text: {e}")
+                    extracted_texts.append(f"Error reading PDF '{file_name}': {str(e)}")
+            
+            elif 'word' in file_type or 'document' in file_type:
+                try:
+                    fbytes = base64.b64decode(file_data)
+                    text = extract_text_from_docx(fbytes)
+                    extracted_texts.append(f"Document Content from '{file_name}':\n{text[:5000]}")
+                except Exception as e:
+                    print(f"Error extracting DOCX text: {e}")
+                    extracted_texts.append(f"Error reading document '{file_name}': {str(e)}")
+            
+            elif 'text/' in file_type:
+                try:
+                    fbytes = base64.b64decode(file_data)
+                    text = fbytes.decode('utf-8', errors='ignore')
+                    extracted_texts.append(f"Text Content from '{file_name}':\n{text[:5000]}")
+                except Exception as e:
+                    print(f"Error extracting text file: {e}")
+                    extracted_texts.append(f"Error reading text file '{file_name}': {str(e)}")
+        
+        # Build the combined text with file contents
+        combined_text = user_message
+        if extracted_texts:
+            combined_text += "\n\n--- File Contents ---\n" + "\n\n".join(extracted_texts)
+        
+        # Set is_multimodal based on file types
+        is_multimodal = bool(files_data) or "youtube.com" in user_message or "youtu.be" in user_message
+        
+        # For code security scan, use the actual code content
+        if is_code_file and code_file_content:
+            language = detect_code_language(code_file_name, code_file_content)
+            combined_text = f"Code to analyze from '{code_file_name}' ({language}):\n\n{code_file_content}"
+            if user_message:
+                combined_text = f"{user_message}\n\nCode to analyze from '{code_file_name}' ({language}):\n\n{code_file_content}"
+        
+        # Auto search detection
         if request_mode == 'chat' and not is_multimodal:
-            auto_mode = should_auto_search(user_message)
+            auto_mode = should_auto_search(combined_text)
             if auto_mode:
                 request_mode = auto_mode
                 if auto_mode in ['web_search', 'security_search']:
-                    library_search_context = search_library(ObjectId(current_user.id), user_message)
-
-        # Web search with daily limit for free users - FIXED VERSION
-        if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
+                    library_search_context = search_library(ObjectId(current_user.id), combined_text)
+        
+        # Web search with daily limit for free users
+        if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and combined_text.strip():
             if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
                 searches_used = user_data.get('usage_counts', {}).get('webSearches', 0)
@@ -898,10 +1041,10 @@ def chat():
                 if searches_used >= 1:
                     web_search_context = "Daily web search limit reached (1 per day)."
                 else:
-                    web_search_context = search_web(user_message)
+                    web_search_context = search_web(combined_text)
                     users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
             else:
-                web_search_context = search_web(user_message)
+                web_search_context = search_web(combined_text)
         
         gemini_history = []
         openai_history = []
@@ -920,28 +1063,108 @@ def chat():
             except Exception as e:
                 print(f"Error fetching chat history: {e}")
 
-        openai_history.append({"role": "user", "content": user_message})
+        openai_history.append({"role": "user", "content": combined_text})
 
         # Try Gemini first, fall back to Groq if it fails
         gemini_response = None
-        if not is_multimodal and user_message.strip():
+        
+        # Handle image files with multimodal Gemini
+        if image_files:
             try:
-                if request_mode == 'code_security_scan':
-                    CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. Analyze the code for security vulnerabilities and provide recommendations."
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                prompt_parts = [combined_text] if combined_text else ["Analyze this image"]
+                
+                for image_file in image_files:
+                    try:
+                        image = Image.open(io.BytesIO(image_file['bytes']))
+                        prompt_parts.append(image)
+                        prompt_parts.append(f"Image: {image_file['filename']}")
+                    except Exception as e:
+                        print(f"Error loading image: {e}")
+                
+                response = model.generate_content(prompt_parts)
+                gemini_response = response.text
+                
+            except Exception as e:
+                print(f"Multimodal Gemini error with images: {e}")
+                gemini_response = f"Error analyzing images: {str(e)}"
+        
+        # Code vulnerability analysis
+        elif is_code_file and code_file_content:
+            try:
+                language = detect_code_language(code_file_name, code_file_content)
+                
+                CODE_SECURITY_PROMPT = f"""You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. 
+                Analyzing {language} code for security vulnerabilities.
+                
+                Provide analysis in this format:
+                
+                ## 🔒 Security Analysis Report - {code_file_name}
+                
+                ### 📊 Language Detected: {language}
+                
+                ### ⚠️ Vulnerabilities Found:
+                [List each vulnerability with severity (Critical/High/Medium/Low)]
+                
+                ### 🎯 Affected Code Lines:
+                [Quote the problematic lines with line numbers]
+                
+                ### 🔥 Risk Assessment:
+                [Explain the potential impact of each vulnerability]
+                
+                ### ✅ Recommended Fixes:
+                [Provide specific code fixes with corrected code examples]
+                
+                ### 🛡️ Secure Coding Practices:
+                [General security guidelines for {language} development]
+                
+                Focus on language-specific vulnerabilities for {language} including:
+                - SQL injection
+                - Cross-site scripting (XSS)
+                - Cross-site request forgery (CSRF)
+                - Authentication bypass
+                - Insecure dependencies
+                - Hardcoded secrets
+                - Input validation issues
+                - Buffer overflows
+                - Race conditions
+                - Insecure deserialization"""
+                
+                if GOOGLE_API_KEY:
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                    full_prompt = f"{CODE_SECURITY_PROMPT}\n\nCode to analyze:\n{user_message}"
+                    full_prompt = f"{CODE_SECURITY_PROMPT}\n\n{combined_text}"
                     response = gemini_model.generate_content(full_prompt)
                     gemini_response = response.text
                     
-                elif (web_search_context or library_search_context):
-                    SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
+                elif GROQ_API_KEY:
+                    code_scan_history = [
+                        {"role": "system", "content": CODE_SECURITY_PROMPT},
+                        {"role": "user", "content": combined_text}
+                    ]
+                    
+                    gemini_response = call_api(
+                        "https://api.groq.com/openai/v1/chat/completions", 
+                        {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
+                        {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, 
+                        "Groq (Code Scan)"
+                    )
+                    
+            except Exception as e:
+                print(f"Code security analysis error: {e}")
+                gemini_response = f"Error during code security analysis: {str(e)}"
+        
+        # Regular text processing (no images, no code files)
+        elif not image_files and not is_code_file and combined_text.strip():
+            try:
+                if (web_search_context or library_search_context):
+                    SYSTEM_PROMPT = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
                     context_parts = []
                     if web_search_context: 
                         context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                     if library_search_context: 
                         context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                     
-                    full_context = f"{SYSTEM_PROMPT}\n\n{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"
+                    full_context = f"{SYSTEM_PROMPT}\n\n{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{combined_text}"
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     response = gemini_model.generate_content(full_context)
                     gemini_response = response.text
@@ -950,10 +1173,10 @@ def chat():
                     # General chat - use Gemini with history
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     if gemini_history:
-                        full_history = gemini_history + [{'role': 'user', 'parts': [user_message]}]
+                        full_history = gemini_history + [{'role': 'user', 'parts': [combined_text]}]
                         response = gemini_model.generate_content(full_history)
                     else:
-                        response = gemini_model.generate_content(user_message)
+                        response = gemini_model.generate_content(combined_text)
                     gemini_response = response.text
                     
             except Exception as e:
@@ -961,21 +1184,15 @@ def chat():
                 gemini_response = None
 
         # If Gemini failed or wasn't used, try Groq as fallback
-        if not gemini_response and not is_multimodal and user_message.strip() and GROQ_API_KEY:
-            if request_mode == 'code_security_scan':
-                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst..."
-                code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
-                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                                       {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, 
-                                       "Groq (Code Scan)")
-            elif (web_search_context or library_search_context):
-                SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
+        if not gemini_response and not image_files and combined_text.strip() and GROQ_API_KEY:
+            if (web_search_context or library_search_context):
+                SYSTEM_PROMPT = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
                 context_parts = []
                 if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                 if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
+                
                 search_augmented_history = [{"role": "system", "content": SYSTEM_PROMPT}, 
-                                            {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{user_message}"}]
+                                            {"role": "user", "content": f"{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{combined_text}"}]
                 ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
                                        {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
                                        {"model": "llama-3.1-8b-instant", "messages": search_augmented_history}, 
@@ -988,42 +1205,31 @@ def chat():
         elif gemini_response:
             ai_response = gemini_response
 
-        # Handle multimodal requests (files, YouTube, etc.) - always use Gemini
-        if not ai_response:
+        # Handle YouTube transcript analysis
+        if not ai_response and ("youtube.com" in user_message or "youtu.be" in user_message):
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                prompt_parts = [user_message] if user_message else []
-                
-                if "youtube.com" in user_message or "youtu.be" in user_message:
-                    video_id = get_video_id(user_message)
-                    transcript = get_youtube_transcript(video_id) if video_id else None
-                    if transcript: 
-                        prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
-                    else: 
-                        return jsonify({'response': "Sorry, couldn't get the transcript."})
-                elif file_data:
-                    fbytes = base64.b64decode(file_data)
-                    if 'pdf' in file_type: 
-                        prompt_parts.append(extract_text_from_pdf(fbytes))
-                    elif 'word' in file_type: 
-                        prompt_parts.append(extract_text_from_docx(fbytes))
-                    elif 'image' in file_type: 
-                        prompt_parts.append(Image.open(io.BytesIO(fbytes)))
-
-                response = model.generate_content(prompt_parts)
-                ai_response = response.text
+                video_id = get_video_id(user_message)
+                transcript = get_youtube_transcript(video_id) if video_id else None
+                if transcript: 
+                    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                    prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                    response = model.generate_content(prompt)
+                    ai_response = response.text
+                else: 
+                    ai_response = "Sorry, couldn't get the transcript for this YouTube video."
             except Exception as e:
-                print(f"Multimodal Gemini error: {e}")
-                ai_response = "Sorry, I encountered an error trying to respond."
+                print(f"YouTube analysis error: {e}")
+                ai_response = "Sorry, I encountered an error trying to analyze the YouTube video."
 
         # Final fallback if all APIs failed
         if not ai_response:
             ai_response = "Sorry, I'm having trouble generating a response. Please try again."
 
         return jsonify({'response': ai_response})
+        
     except Exception as e:
         print(f"Chat endpoint error: {e}")
-        return jsonify({'response': "Sorry, an internal error occurred."})
+        return jsonify({'response': f"Sorry, an internal error occurred: {str(e)}"})
 
 @app.route('/save_chat_history', methods=['POST'])
 @login_required
