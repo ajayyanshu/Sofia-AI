@@ -608,44 +608,15 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', eve
 // --- Core Functions ---
 
 // UPDATED: Handle multiple file selection
-// Replace the current handleFileSelect function in script.js with this:
-
 function handleFileSelect(event) {
     const selectedFiles = event.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
 
     addMenu.classList.add('hidden');
     
-    // Check total size
-    let totalSize = 0;
-    for (let i = 0; i < selectedFiles.length; i++) {
-        totalSize += selectedFiles[i].size;
-    }
-    
-    if (totalSize > 10 * 1024 * 1024) { // 10MB
-        alert("Total file size exceeds 10MB limit. Please upload fewer or smaller files.");
-        fileInput.value = '';
-        return;
-    }
-    
     // Process each file
     for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
-        
-        // Validate file type
-        const fileExt = file.name.split('.').pop().toLowerCase();
-        const allowedTypes = [
-            'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', // Images
-            'pdf', 'doc', 'docx', 'txt', // Documents
-            'py', 'js', 'java', 'c', 'cpp', 'h', 'html', 'css', 'json', 
-            'md', 'sh', 'rb', 'go', 'php', 'swift', 'kt', 'ts', 'rs', 'cs', 'sql' // Code
-        ];
-        
-        if (!allowedTypes.includes(fileExt)) {
-            alert(`File type .${fileExt} not allowed for ${file.name}`);
-            continue;
-        }
-        
         const reader = new FileReader();
         
         reader.onload = (function(file) {
@@ -658,12 +629,10 @@ function handleFileSelect(event) {
                     id: fileId,
                     data: base64Data,
                     type: file.type,
-                    name: file.name,
-                    size: file.size,
-                    icon: getFileIcon(file.type, file.name) // Keep the icon function
+                    name: file.name
                 });
                 
-                // Show preview for this file (using existing showFilePreview function)
+                // Show preview for this file
                 showFilePreview(file, fileId);
                 
                 // Show send button if we have any files
@@ -676,14 +645,13 @@ function handleFileSelect(event) {
                 // Show clear all button if we have files
                 if (filesData.length > 0) {
                     clearAllFilesBtn.classList.remove('hidden');
-                    clearAllFilesBtn.innerHTML = `${translations[currentLang]['clearAll']} (${filesData.length})`;
                 }
             };
         })(file);
         
         reader.onerror = function(error) {
             console.error("Error reading file:", error);
-            alert(`Error reading file: ${file.name}`);
+            addMessage({ text: "Sorry, there was an error reading your file.", sender: 'system'});
         };
         reader.readAsDataURL(file);
     }
@@ -1835,4 +1803,3 @@ function typeWriterEffect(elementId, text, speed = 40) {
 }
 
 initializeApp();
-
