@@ -4,10 +4,12 @@ import os
 import re
 import sys
 import json
+import magic  # NEW: For file type validation
 from datetime import datetime, date, timedelta
 import uuid
 import random
 from threading import Thread
+from werkzeug.utils import secure_filename  # NEW: For filename sanitization
 
 import docx
 import fitz  # PyMuPDF
@@ -16,14 +18,14 @@ import requests
 from flask import (Flask, jsonify, render_template, request, session, redirect,
                    url_for, flash, make_response)
 from flask_cors import CORS
+from flask_limiter import Limiter  # NEW: For rate limiting
+from flask_limiter.util import get_remote_address  # NEW: For rate limiting
 from PIL import Image
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from youtube_transcript_api import YouTubeTranscriptApi
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
-
-# Note: We removed Flask-Mail imports as we are now using Brevo API directly via requests
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
@@ -34,6 +36,10 @@ app.config['SECRET_KEY'] = SECRET_KEY
 if SECRET_KEY == "dev-secret-key":
     print("CRITICAL WARNING: Using a default, insecure FLASK_SECRET_KEY for development.")
 
+# NEW: Security configuration
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB file size limit
+app.config['UPLOAD_FOLDER'] = '/tmp/sofia_uploads'  # Secure temp location
+
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 MONGO_URI = os.environ.get("MONGO_URI")
@@ -42,7 +48,7 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
 # --- Brevo (Email) Configuration ---
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com") # Must be verified in Brevo
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "admin@sofia-ai.com")
 
 if not BREVO_API_KEY:
     print("CRITICAL WARNING: BREVO_API_KEY not found. Email features will not work.")
@@ -63,6 +69,54 @@ if SERPER_API_KEY:
     print("✅ Serper API Key (for web search) loaded.")
 else:
     print("CRITICAL WARNING: SERPER_API_KEY not found. AI web search will be disabled.")
+
+# --- Rate Limiting Configuration ---
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# --- File Validation Configuration ---
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
+ALLOWED_CODE_EXTENSIONS = {'py', 'js', 'java', 'c', 'cpp', 'h', 'html', 'css', 
+                          'json', 'md', 'sh', 'rb', 'go', 'php', 'swift', 'kt', 
+                          'ts', 'rs', 'cs', 'sql'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# MIME type mapping for validation
+MIME_MAP = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'webp': 'image/webp',
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt': 'text/plain',
+    'py': 'text/x-python',
+    'js': 'text/javascript',
+    'html': 'text/html',
+    'css': 'text/css',
+    'json': 'application/json',
+    'java': 'text/x-java-source',
+    'c': 'text/x-c',
+    'cpp': 'text/x-c++',
+    'cs': 'text/x-csharp',
+    'php': 'text/x-php',
+    'rb': 'text/x-ruby',
+    'go': 'text/x-go',
+    'swift': 'text/x-swift',
+    'kt': 'text/x-kotlin',
+    'rs': 'text/x-rust',
+    'sql': 'application/sql',
+    'sh': 'application/x-sh',
+    'md': 'text/markdown',
+}
 
 # --- MongoDB Configuration ---
 mongo_client = None
@@ -134,7 +188,164 @@ GITHUB_REPO = os.environ.get("GITHUB_REPO")
 GITHUB_FOLDER_PATH = os.environ.get("GITHUB_FOLDER_PATH", "")
 PDF_KEYWORDS = {} # Configure your keywords here
 
-# --- Helper: Send Email via Brevo ---
+# --- Security Headers Middleware ---
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses."""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy'] = "default-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://checkout.razorpay.com https://www.googletagmanager.com https://fonts.googleapis.com;"
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    return response
+
+# --- Helper Functions ---
+
+def validate_file(file_stream, filename, allowed_extensions):
+    """Validate file type, size, and MIME type."""
+    try:
+        # Check file size
+        file_stream.seek(0, 2)  # Seek to end
+        file_size = file_stream.tell()
+        file_stream.seek(0)  # Reset pointer
+        
+        if file_size > MAX_FILE_SIZE:
+            return False, "File too large (max 10MB)"
+        
+        if file_size == 0:
+            return False, "File is empty"
+        
+        # Get file extension
+        if '.' not in filename:
+            return False, "File has no extension"
+        
+        file_ext = filename.rsplit('.', 1)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            allowed_list = ', '.join(sorted(allowed_extensions))
+            return False, f"File type .{file_ext} not allowed. Allowed: {allowed_list}"
+        
+        # Validate MIME type
+        mime = magic.Magic(mime=True)
+        detected_mime = mime.from_buffer(file_stream.read(1024))
+        file_stream.seek(0)
+        
+        expected_mime = MIME_MAP.get(file_ext, '')
+        if expected_mime and not detected_mime.startswith(expected_mime.split('/')[0]):
+            return False, f"File MIME type mismatch. Detected: {detected_mime}"
+        
+        # Additional security checks
+        # Prevent SVG with scripts (XSS)
+        if file_ext == 'svg':
+            svg_content = file_stream.read().decode('utf-8', errors='ignore')
+            file_stream.seek(0)
+            if re.search(r'<script', svg_content, re.IGNORECASE):
+                return False, "SVG contains scripts (XSS risk)"
+        
+        return True, "Valid"
+        
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"
+
+def sanitize_filename(filename):
+    """Sanitize filename to prevent path traversal attacks."""
+    filename = secure_filename(filename)
+    # Add timestamp to prevent overwrites and collisions
+    name, ext = os.path.splitext(filename)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    random_str = uuid.uuid4().hex[:8]
+    return f"{name}_{timestamp}_{random_str}{ext}"
+
+def scan_code_for_vulnerabilities(code_content, filename=""):
+    """Enhanced code vulnerability scanner."""
+    vulnerabilities = []
+    warnings = []
+    
+    # SQL Injection patterns
+    sql_patterns = [
+        (r"SELECT.*FROM.*WHERE.*\%s", "SQL Injection (string formatting)"),
+        (r"execute\(.*\%", "SQL Injection (string formatting in execute)"),
+        (r"executemany\(.*\%", "SQL Injection (string formatting in executemany)"),
+        (r"\.format\(.*SELECT", "SQL Injection (format() with SQL)"),
+        (r"f\".*SELECT", "SQL Injection (f-string with SQL)"),
+        (r"query\s*=\s*f\".*SELECT", "SQL Injection (f-string query)"),
+    ]
+    
+    # XSS patterns
+    xss_patterns = [
+        (r"innerHTML\s*=", "XSS (innerHTML assignment)"),
+        (r"document\.write\(", "XSS (document.write)"),
+        (r"eval\(", "XSS/Code Injection (eval)"),
+        (r"setTimeout\(.*\)", "XSS (setTimeout with string)"),
+        (r"setInterval\(.*\)", "XSS (setInterval with string)"),
+        (r"\.html\(", "XSS (jQuery .html())"),
+        (r"\.append\(", "XSS (jQuery .append() with untrusted data)"),
+    ]
+    
+    # Command Injection patterns
+    cmd_patterns = [
+        (r"os\.system\(", "Command Injection (os.system)"),
+        (r"subprocess\.call\(", "Command Injection (subprocess.call)"),
+        (r"subprocess\.Popen\(", "Command Injection (subprocess.Popen)"),
+        (r"exec\(", "Command Injection (exec)"),
+        (r"shell=True", "Command Injection (shell=True)"),
+    ]
+    
+    # Hardcoded secrets
+    secret_patterns = [
+        (r'password\s*=\s*[\'"][^\'"]{8,}[\'"]', "Hardcoded password"),
+        (r'api[_-]?key\s*=\s*[\'"][^\'"]{10,}[\'"]', "Hardcoded API key"),
+        (r'secret\s*=\s*[\'"][^\'"]{8,}[\'"]', "Hardcoded secret"),
+        (r'token\s*=\s*[\'"][^\'"]{10,}[\'"]', "Hardcoded token"),
+        (r'aws[_-]?secret\s*=\s*[\'"][^\'"]{10,}[\'"]', "Hardcoded AWS secret"),
+    ]
+    
+    # Insecure deserialization
+    insecure_patterns = [
+        (r'pickle\.loads\(', "Insecure deserialization (pickle)"),
+        (r'yaml\.load\(', "Insecure deserialization (yaml.load)"),
+        (r'json\.loads\(.*object_hook', "Insecure JSON deserialization"),
+    ]
+    
+    # Weak cryptography
+    crypto_patterns = [
+        (r'md5\(', "Weak cryptography (MD5)"),
+        (r'sha1\(', "Weak cryptography (SHA1)"),
+        (r'base64\.b64decode\(', "Base64 is not encryption"),
+    ]
+    
+    # Check based on file type
+    file_ext = filename.split('.')[-1].lower() if filename else ''
+    
+    all_patterns = []
+    if file_ext in ['py', 'js', 'php', 'java', 'c', 'cpp', 'cs']:
+        all_patterns.extend(sql_patterns + xss_patterns + cmd_patterns + 
+                           secret_patterns + insecure_patterns + crypto_patterns)
+    
+    # Scan for patterns
+    for pattern, description in all_patterns:
+        if re.search(pattern, code_content, re.IGNORECASE | re.DOTALL):
+            if description.startswith("Hardcoded"):
+                warnings.append(description)
+            else:
+                vulnerabilities.append(description)
+    
+    # Additional language-specific checks
+    if file_ext == 'php':
+        if re.search(r'\$_GET\[', code_content):
+            vulnerabilities.append("Unsanitized GET parameter")
+        if re.search(r'\$_POST\[', code_content):
+            vulnerabilities.append("Unsanitized POST parameter")
+    
+    return {
+        'vulnerabilities': list(set(vulnerabilities)),
+        'warnings': list(set(warnings)),
+        'total_issues': len(vulnerabilities) + len(warnings)
+    }
+
+# --- Email Functions ---
+
 def send_brevo_email(to_email, subject, html_content):
     """Sends an email using the Brevo (Sendinblue) API."""
     if not BREVO_API_KEY:
@@ -156,7 +367,7 @@ def send_brevo_email(to_email, subject, html_content):
 
     try:
         response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status() # Raise error for bad status codes
+        response.raise_for_status()
         print(f"✅ Email sent successfully to {to_email}")
         return True
     except Exception as e:
@@ -167,7 +378,6 @@ def send_async_brevo_email(app, to_email, subject, html_content):
     """Wrapper to run email sending in a background thread."""
     with app.app_context():
         send_brevo_email(to_email, subject, html_content)
-
 
 # --- Page Rendering Routes ---
 
@@ -209,6 +419,7 @@ def reset_password_page():
 # --- API Authentication Routes ---
 
 @app.route('/api/signup', methods=['POST'])
+@limiter.limit("5 per minute")  # Rate limit signups
 def api_signup():
     data = request.get_json()
     name = data.get('name')
@@ -218,6 +429,14 @@ def api_signup():
 
     if not all([name, email, password]):
         return jsonify({'success': False, 'error': 'Please fill out all fields.'}), 400
+    
+    # Validate email format
+    if not re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email):
+        return jsonify({'success': False, 'error': 'Invalid email format.'}), 400
+    
+    # Validate password strength
+    if len(password) < 8:
+        return jsonify({'success': False, 'error': 'Password must be at least 8 characters.'}), 400
 
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
@@ -235,11 +454,11 @@ def api_signup():
         "isAdmin": email == ADMIN_EMAIL, 
         "isPremium": False, 
         "is_verified": False,
-        "verification_token": otp_code, # Store OTP in the verification_token field
+        "verification_token": otp_code,
         "session_id": str(uuid.uuid4()),
         "usage_counts": { "messages": 0, "webSearches": 0 },
         "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
-        "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),  # ADDED: Separate web search reset tracking
+        "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),
         "timestamp": datetime.utcnow().isoformat()
     }
     users_collection.insert_one(new_user)
@@ -264,6 +483,7 @@ def api_signup():
 
 
 @app.route('/api/verify_otp', methods=['POST'])
+@limiter.limit("10 per minute")
 def api_verify_otp():
     """Endpoint to verify the 6-digit OTP code."""
     data = request.get_json()
@@ -272,6 +492,9 @@ def api_verify_otp():
 
     if not all([email, otp]):
         return jsonify({'success': False, 'error': 'Email and OTP are required.'}), 400
+    
+    if not re.match(r'^[\d]{6}$', otp):
+        return jsonify({'success': False, 'error': 'Invalid OTP format.'}), 400
 
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
@@ -292,6 +515,7 @@ def api_verify_otp():
 
 
 @app.route('/api/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def api_login():
     data = request.get_json()
     email = data.get('email')
@@ -299,6 +523,10 @@ def api_login():
 
     if not all([email, password]):
         return jsonify({'success': False, 'error': 'Please enter both email and password.'}), 400
+    
+    # Basic input sanitization
+    if len(email) > 100 or len(password) > 100:
+        return jsonify({'success': False, 'error': 'Input too long.'}), 400
 
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
@@ -321,14 +549,19 @@ def api_login():
         return jsonify({'success': False, 'error': 'Incorrect email or password.'}), 401
 
 @app.route('/api/request_password_reset', methods=['POST'])
+@limiter.limit("3 per hour")
 def request_password_reset():
     data = request.get_json()
     email = data.get('email')
     if not email:
         return jsonify({'success': False, 'error': 'Email is required.'}), 400
+    
+    if not re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email):
+        return jsonify({'success': False, 'error': 'Invalid email format.'}), 400
 
     user = users_collection.find_one({"email": email})
     if not user:
+        # Don't reveal if user exists (security best practice)
         return jsonify({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
     reset_token = uuid.uuid4().hex
@@ -346,6 +579,7 @@ def request_password_reset():
     <p>You requested a password reset for Sofia AI. Click the link below to reset it:</p>
     <p><a href="{reset_url}" style="color: #FF4B2B;">Reset Password</a></p>
     <p>This link expires in 1 hour.</p>
+    <p>If you didn't request this, please ignore this email.</p>
     """
     
     Thread(target=send_async_brevo_email, args=(app, email, "Reset Your Password - Sofia AI", html_content)).start()
@@ -353,6 +587,7 @@ def request_password_reset():
     return jsonify({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
 @app.route('/api/reset_password', methods=['POST'])
+@limiter.limit("5 per hour")
 def reset_password():
     data = request.get_json()
     token = data.get('token')
@@ -360,6 +595,9 @@ def reset_password():
 
     if not all([token, new_password]):
         return jsonify({'success': False, 'error': 'Token and new password are required.'}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({'success': False, 'error': 'Password must be at least 8 characters.'}), 400
 
     user = users_collection.find_one({
         "password_reset_token": token,
@@ -533,6 +771,9 @@ def rename_chat(chat_id):
     new_title = data.get('title')
     if not new_title:
         return jsonify({"error": "New title not provided"}), 400
+    
+    # Limit title length
+    new_title = new_title[:100]
 
     try:
         result = conversations_collection.update_one(
@@ -600,6 +841,7 @@ def run_ai_summary_in_background(app, item_id, text_content):
 
 @app.route('/library/upload', methods=['POST'])
 @login_required
+@limiter.limit("10 per minute")
 def upload_library_item():
     if library_collection is None:
         return jsonify({"error": "Database not configured"}), 500
@@ -610,21 +852,37 @@ def upload_library_item():
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-
-    filename = file.filename
+    
+    filename = sanitize_filename(file.filename)
     file_content = file.read()
     file_type = file.mimetype
+    
+    # Validate file
+    is_valid, message = validate_file(
+        io.BytesIO(file_content), 
+        filename,
+        ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_CODE_EXTENSIONS
+    )
+    
+    if not is_valid:
+        return jsonify({'error': message}), 400
+    
     file_size = len(file_content)
     encoded_file_content = base64.b64encode(file_content).decode('utf-8')
 
     extracted_text = ""
     if 'image' in file_type:
-        extracted_text = "Image file."
+        try:
+            # Try to extract text from image using Gemini if it's an image
+            img = Image.open(io.BytesIO(file_content))
+            extracted_text = "Image file. OCR analysis available in chat."
+        except:
+            extracted_text = "Image file."
     elif 'pdf' in file_type:
         extracted_text = extract_text_from_pdf(file_content)
     elif 'word' in file_type or file_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         extracted_text = extract_text_from_docx(file_content)
-    elif 'text' in file_type:
+    elif 'text' in file_type or any(filename.endswith(ext) for ext in ALLOWED_CODE_EXTENSIONS):
         try:
             extracted_text = file_content.decode('utf-8')
         except UnicodeDecodeError:
@@ -633,13 +891,15 @@ def upload_library_item():
     library_item = {
         "user_id": ObjectId(current_user.id),
         "filename": filename,
+        "original_filename": file.filename,
         "file_type": file_type,
         "file_size": file_size,
         "file_data": encoded_file_content,
-        "extracted_text": extracted_text[:1000],
+        "extracted_text": extracted_text[:5000],  # Limit stored text
         "ai_summary": "Processing...",
         "ai_summary_status": "pending",
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.utcnow(),
+        "security_scanned": False
     }
 
     try:
@@ -678,6 +938,7 @@ def get_library_items():
             items_list.append({
                 "_id": str(item["_id"]),
                 "fileName": item["filename"],
+                "originalFileName": item.get("original_filename", item["filename"]),
                 "fileType": item["file_type"],
                 "fileSize": item["file_size"],
                 "fileData": item["file_data"],
@@ -711,7 +972,10 @@ def delete_library_item(item_id):
 def extract_text_from_pdf(pdf_bytes):
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        return "".join(page.get_text() for page in pdf_document)
+        text = ""
+        for page in pdf_document:
+            text += page.get_text()
+        return text
     except Exception as e:
         print(f"Error extracting PDF text: {e}")
         return ""
@@ -724,10 +988,119 @@ def extract_text_from_docx(docx_bytes):
         print(f"Error extracting DOCX text: {e}")
         return ""
 
+def get_file_from_github(filename):
+    if not all([GITHUB_USER, GITHUB_REPO]):
+        print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
+        return None
+    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading from GitHub: {e}")
+        return None
+
+def get_video_id(video_url):
+    match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
+    return match.group(1) if match else None
+
+def get_youtube_transcript(video_id):
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        return " ".join([d['text'] for d in transcript_list])
+    except Exception as e:
+        print(f"Error getting YouTube transcript: {e}")
+        return None
+
+def call_api(url, headers, json_payload, api_name):
+    try:
+        response = requests.post(url, headers=headers, json=json_payload, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+        if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
+             return result['choices'][0]['message']['content']
+        else:
+            return None
+    except Exception as e:
+        print(f"Error calling {api_name} API: {e}")
+        return None
+
+def search_web(query):
+    if not SERPER_API_KEY:
+        return "Web search is disabled because the API key is not configured."
+
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({"q": query})
+    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+    try:
+        response = requests.post(url, headers=headers, data=payload, timeout=15)
+        response.raise_for_status()
+        results = response.json()
+        snippets = []
+        if "organic" in results:
+            for item in results.get("organic", [])[:5]:
+                title = item.get("title", "No Title")
+                snippet = item.get("snippet", "No Snippet")
+                link = item.get("link", "No Link")
+                snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
+        if snippets:
+            return "\n\n---\n\n".join(snippets)
+        elif "answerBox" in results:
+            answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
+            if answer: return f"Direct Answer: {answer}"
+        return "No relevant web results found."
+    except Exception as e:
+        print(f"Error calling Serper API: {e}")
+        return f"An error occurred during the web search: {e}"
+
+def search_library(user_id, query):
+    if not library_collection: return None
+    try:
+        keywords = re.split(r'\s+', query)
+        regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
+        items_cursor = library_collection.find({
+            "user_id": user_id,
+            "extracted_text": {"$regex": regex_pattern, "$options": "i"}
+        }).limit(3)
+        snippets = []
+        for item in items_cursor:
+            filename = item.get("filename", "Untitled")
+            snippet = item.get("extracted_text", "")
+            context_snippet = snippet[:300]
+            snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
+        if snippets: return "\n\n---\n\n".join(snippets)
+        else: return None
+    except Exception as e:
+        return None
+
+def should_auto_search(user_message):
+    msg_lower = user_message.lower().strip()
+    security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 
+                        'mitigation', 'exploit', 'security', 'hack', 'pentest', 'penetration']
+    code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(', 
+                    '<?php', '<script>', 'cout <<', 'printf', 'console.log']
+    general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 202', 
+                              'current', 'recent', 'update']
+    chat_keywords = ['hi', 'hello', 'thanks', 'thank you', 'hey', 'good morning']
+    
+    if any(msg_lower.startswith(k) for k in chat_keywords): 
+        return None
+    if any(k in msg_lower for k in security_keywords): 
+        return 'security_search'
+    if any(k in user_message for k in code_keywords): 
+        return 'code_security_scan'
+    if any(k in msg_lower for k in general_search_keywords): 
+        return 'web_search'
+    if len(user_message.split()) > 6: 
+        return 'web_search'
+    return None
+
 @app.route('/chat', methods=['POST'])
 @login_required
+@limiter.limit("30 per minute")
 def chat():
-    # Free plan usage check and reset logic - FIXED VERSION
+    # Free plan usage check and reset logic
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         last_reset_str = user_data.get('last_usage_reset', '1970-01-01')
@@ -738,7 +1111,6 @@ def chat():
 
         # Check for month change (for message reset)
         if last_reset_date.month < today.month or last_reset_date.year < today.year:
-            # New month: reset message count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
@@ -748,9 +1120,8 @@ def chat():
             )
             user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
         
-        # Check for day change (for web search reset) - SEPARATE TRACKING
+        # Check for day change (for web search reset)
         if last_web_reset_date < today:
-            # New day: reset web search count
             users_collection.update_one(
                 {'_id': ObjectId(current_user.id)},
                 {'$set': {
@@ -763,7 +1134,6 @@ def chat():
         usage = user_data.get('usage_counts', {})
         messages_used = usage.get('messages', 0)
         
-        # Check message limit (500 per month for free plan)
         if messages_used >= 500:
             return jsonify({
                 'error': 'You have reached your monthly message limit. Please upgrade for unlimited access.',
@@ -772,116 +1142,68 @@ def chat():
             
         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.messages': 1}})
 
-    def get_file_from_github(filename):
-        if not all([GITHUB_USER, GITHUB_REPO]):
-            print("CRITICAL WARNING: GITHUB_USER or GITHUB_REPO is not configured.")
-            return None
-        url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO.replace(' ', '%20')}/main/{GITHUB_FOLDER_PATH.replace(' ', '%20')}/{filename.replace(' ', '%20')}"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading from GitHub: {e}")
-            return None
-
-    def get_video_id(video_url):
-        match = re.search(r"(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", video_url)
-        return match.group(1) if match else None
-
-    def get_youtube_transcript(video_id):
-        try:
-            return " ".join([d['text'] for d in YouTubeTranscriptApi.get_transcript(video_id)])
-        except Exception as e:
-            print(f"Error getting YouTube transcript: {e}")
-            return None
-
-    def call_api(url, headers, json_payload, api_name):
-        try:
-            response = requests.post(url, headers=headers, json=json_payload)
-            response.raise_for_status()
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
-                 return result['choices'][0]['message']['content']
-            else:
-                return None
-        except Exception as e:
-            print(f"Error calling {api_name} API: {e}")
-            return None
-
-    def search_web(query):
-        if not SERPER_API_KEY:
-            return "Web search is disabled because the API key is not configured."
-
-        url = "https://google.serper.dev/search"
-        payload = json.dumps({"q": query})
-        headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-        try:
-            response = requests.post(url, headers=headers, data=payload)
-            response.raise_for_status()
-            results = response.json()
-            snippets = []
-            if "organic" in results:
-                for item in results.get("organic", [])[:5]:
-                    title = item.get("title", "No Title")
-                    snippet = item.get("snippet", "No Snippet")
-                    link = item.get("link", "No Link")
-                    snippets.append(f"Title: {title}\nSnippet: {snippet}\nSource: {link}")
-            if snippets:
-                return "\n\n---\n\n".join(snippets)
-            elif "answerBox" in results:
-                answer = results["answerBox"].get("snippet") or results["answerBox"].get("answer")
-                if answer: return f"Direct Answer: {answer}"
-            return "No relevant web results found."
-        except Exception as e:
-            print(f"Error calling Serper API: {e}")
-            return f"An error occurred during the web search: {e}"
-
-    def search_library(user_id, query):
-        if not library_collection: return None
-        try:
-            keywords = re.split(r'\s+', query)
-            regex_pattern = '.*'.join(f'(?=.*{re.escape(k)})' for k in keywords)
-            items_cursor = library_collection.find({
-                "user_id": user_id,
-                "extracted_text": {"$regex": regex_pattern, "$options": "i"}
-            }).limit(3)
-            snippets = []
-            for item in items_cursor:
-                filename = item.get("filename", "Untitled")
-                snippet = item.get("extracted_text", "")
-                context_snippet = snippet[:300]
-                snippets.append(f"Source: {filename} (from your Library)\nSnippet: {context_snippet}...")
-            if snippets: return "\n\n---\n\n".join(snippets)
-            else: return None
-        except Exception as e:
-            return None
-    
-    def should_auto_search(user_message):
-        msg_lower = user_message.lower().strip()
-        security_keywords = ['vulnerability', 'malware', 'cybersecurity', 'sql injection', 'xss', 'mitigation', 'exploit']
-        code_keywords = ['def ', 'function ', 'public class', 'SELECT *', 'import ', 'require(']
-        general_search_keywords = ['what is', 'who is', 'where is', 'latest', 'news', 'in 2025']
-        chat_keywords = ['hi', 'hello', 'thanks']
-        if any(msg_lower.startswith(k) for k in chat_keywords): return None
-        if any(k in msg_lower for k in security_keywords): return 'security_search'
-        if any(k in user_message for k in code_keywords): return 'code_security_scan'
-        if any(k in msg_lower for k in general_search_keywords): return 'web_search'
-        if len(user_message.split()) > 6: return 'web_search'
-        return None
-
     try:
         data = request.json
         user_message = data.get('text', '')
-        file_data = data.get('fileData')
-        file_type = data.get('fileType', '')
+        files_data = data.get('filesData', [])  # Array of files
         is_temporary = data.get('isTemporary', False)
         request_mode = data.get('mode') 
         ai_response = None
         web_search_context = None 
         library_search_context = None
-        is_multimodal = bool(file_data) or "youtube.com" in user_message or "youtu.be" in user_message or any(k in user_message.lower() for k in PDF_KEYWORDS)
-
+        
+        # Validate and process files
+        validated_files = []
+        if files_data:
+            for file_data in files_data:
+                try:
+                    file_bytes = base64.b64decode(file_data.get('data', ''))
+                    file_type = file_data.get('type', '')
+                    file_name = file_data.get('name', 'unnamed')
+                    
+                    # Determine allowed extensions based on file type
+                    if 'image' in file_type:
+                        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
+                    elif 'pdf' in file_type or 'word' in file_type or 'document' in file_type:
+                        allowed_extensions = ALLOWED_DOCUMENT_EXTENSIONS
+                    elif 'text' in file_type:
+                        allowed_extensions = ALLOWED_CODE_EXTENSIONS
+                    else:
+                        # Check file extension
+                        file_ext = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                        if file_ext in ALLOWED_CODE_EXTENSIONS:
+                            allowed_extensions = ALLOWED_CODE_EXTENSIONS
+                        else:
+                            allowed_extensions = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_CODE_EXTENSIONS
+                    
+                    # Validate file
+                    is_valid, message = validate_file(
+                        io.BytesIO(file_bytes), 
+                        file_name, 
+                        allowed_extensions
+                    )
+                    
+                    if not is_valid:
+                        return jsonify({
+                            'response': f"File validation failed for {file_name}: {message}"
+                        }), 400
+                    
+                    validated_files.append({
+                        'bytes': file_bytes,
+                        'type': file_type,
+                        'name': file_name
+                    })
+                    
+                except Exception as e:
+                    print(f"File processing error: {e}")
+                    return jsonify({
+                        'response': f"Error processing file {file_data.get('name', 'unknown')}"
+                    }), 400
+        
+        # Determine if multimodal
+        is_multimodal = bool(validated_files) or "youtube.com" in user_message or "youtu.be" in user_message
+        
+        # Auto-search logic
         if request_mode == 'chat' and not is_multimodal:
             auto_mode = should_auto_search(user_message)
             if auto_mode:
@@ -889,7 +1211,7 @@ def chat():
                 if auto_mode in ['web_search', 'security_search']:
                     library_search_context = search_library(ObjectId(current_user.id), user_message)
 
-        # Web search with daily limit for free users - FIXED VERSION
+        # Web search with daily limit for free users
         if (request_mode == 'web_search' or request_mode == 'security_search') and not is_multimodal and user_message.strip():
             if not current_user.isPremium and not current_user.isAdmin:
                 user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -903,11 +1225,15 @@ def chat():
             else:
                 web_search_context = search_web(user_message)
         
+        # Get chat history
         gemini_history = []
         openai_history = []
         if conversations_collection is not None and not is_temporary:
             try:
-                recent_conversation = conversations_collection.find_one({"user_id": ObjectId(current_user.id)}, sort=[("timestamp", -1)])
+                recent_conversation = conversations_collection.find_one(
+                    {"user_id": ObjectId(current_user.id)}, 
+                    sort=[("timestamp", -1)]
+                )
                 if recent_conversation and 'messages' in recent_conversation:
                     past_messages = recent_conversation['messages'][-10:]
                     for msg in past_messages:
@@ -922,18 +1248,63 @@ def chat():
 
         openai_history.append({"role": "user", "content": user_message})
 
-        # Try Gemini first, fall back to Groq if it fails
-        gemini_response = None
-        if not is_multimodal and user_message.strip():
+        # Enhanced Code Security Scan
+        if request_mode == 'code_security_scan':
+            code_content = user_message
+            filename = ""
+            
+            if validated_files:
+                try:
+                    code_content = validated_files[0]['bytes'].decode('utf-8')
+                    filename = validated_files[0]['name']
+                except:
+                    try:
+                        code_content = validated_files[0]['bytes'].decode('latin-1', errors='ignore')
+                    except:
+                        code_content = "Binary file - cannot scan for vulnerabilities"
+            
+            # Run vulnerability scan
+            scan_results = scan_code_for_vulnerabilities(code_content, filename)
+            
+            # Create enhanced report
+            CODE_SECURITY_PROMPT = f"""
+            You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. 
+            
+            Analyze this code for security vulnerabilities and provide recommendations.
+            
+            SECURITY SCAN RESULTS:
+            - Total Issues Found: {scan_results['total_issues']}
+            - Critical Vulnerabilities: {len(scan_results['vulnerabilities'])}
+            {chr(10).join(f'  - {v}' for v in scan_results['vulnerabilities'])}
+            - Warnings: {len(scan_results['warnings'])}
+            {chr(10).join(f'  - {w}' for w in scan_results['warnings'])}
+            
+            CODE TO ANALYZE:
+            Filename: {filename if filename else 'Direct input'}
+            ```
+            {code_content[:2000]}
+            ```
+            
+            Provide:
+            1. Executive summary of security posture
+            2. Detailed analysis of each finding
+            3. Specific remediation steps
+            4. Secure code examples
+            5. Best practices recommendations
+            """
+            
             try:
-                if request_mode == 'code_security_scan':
-                    CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. Analyze the code for security vulnerabilities and provide recommendations."
-                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                    full_prompt = f"{CODE_SECURITY_PROMPT}\n\nCode to analyze:\n{user_message}"
-                    response = gemini_model.generate_content(full_prompt)
-                    gemini_response = response.text
-                    
-                elif (web_search_context or library_search_context):
+                gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                response = gemini_model.generate_content(CODE_SECURITY_PROMPT)
+                gemini_response = response.text
+            except Exception as e:
+                print(f"Code security scan error: {e}")
+                gemini_response = None
+        
+        # Try Gemini first
+        elif not is_multimodal and user_message.strip():
+            try:
+                if web_search_context or library_search_context:
                     SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
                     context_parts = []
                     if web_search_context: 
@@ -962,14 +1333,7 @@ def chat():
 
         # If Gemini failed or wasn't used, try Groq as fallback
         if not gemini_response and not is_multimodal and user_message.strip() and GROQ_API_KEY:
-            if request_mode == 'code_security_scan':
-                CODE_SECURITY_PROMPT = "You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst..."
-                code_scan_history = [{"role": "system", "content": CODE_SECURITY_PROMPT}, {"role": "user", "content": user_message}]
-                ai_response = call_api("https://api.groq.com/openai/v1/chat/completions", 
-                                       {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                                       {"model": "llama-3.1-70b-versatile", "messages": code_scan_history}, 
-                                       "Groq (Code Scan)")
-            elif (web_search_context or library_search_context):
+            if web_search_context or library_search_context:
                 SYSTEM_PROMPT = "You are 'Sofia-Sec-L', a security analyst. Answer based *only* on context provided. Cite sources."
                 context_parts = []
                 if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
@@ -988,33 +1352,54 @@ def chat():
         elif gemini_response:
             ai_response = gemini_response
 
-        # Handle multimodal requests (files, YouTube, etc.) - always use Gemini
-        if not ai_response:
+        # Handle multimodal requests (files, YouTube, etc.)
+        if not ai_response and (validated_files or "youtube.com" in user_message or "youtu.be" in user_message):
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                model = genai.GenerativeModel("gemini-1.5-pro-latest")
                 prompt_parts = [user_message] if user_message else []
                 
+                # Handle YouTube
                 if "youtube.com" in user_message or "youtu.be" in user_message:
                     video_id = get_video_id(user_message)
                     transcript = get_youtube_transcript(video_id) if video_id else None
                     if transcript: 
-                        prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript}"]
+                        prompt_parts = [f"Summarize this YouTube video transcript:\n\n{transcript[:5000]}"]
                     else: 
                         return jsonify({'response': "Sorry, couldn't get the transcript."})
-                elif file_data:
-                    fbytes = base64.b64decode(file_data)
-                    if 'pdf' in file_type: 
-                        prompt_parts.append(extract_text_from_pdf(fbytes))
-                    elif 'word' in file_type: 
-                        prompt_parts.append(extract_text_from_docx(fbytes))
-                    elif 'image' in file_type: 
-                        prompt_parts.append(Image.open(io.BytesIO(fbytes)))
+                
+                # Handle files
+                elif validated_files:
+                    for file in validated_files:
+                        if 'image' in file['type']:
+                            try:
+                                image = Image.open(io.BytesIO(file['bytes']))
+                                prompt_parts.append(image)
+                            except Exception as e:
+                                print(f"Image processing error: {e}")
+                                prompt_parts.append(f"Image file: {file['name']}")
+                        elif 'pdf' in file['type']:
+                            text = extract_text_from_pdf(file['bytes'])
+                            prompt_parts.append(f"PDF: {file['name']}\n\n{text[:5000]}")
+                        elif 'word' in file['type'] or 'document' in file['type']:
+                            text = extract_text_from_docx(file['bytes'])
+                            prompt_parts.append(f"Document: {file['name']}\n\n{text[:5000]}")
+                        else:
+                            # Handle code/text files
+                            try:
+                                text = file['bytes'].decode('utf-8')
+                                prompt_parts.append(f"Code file: {file['name']}\n\n{text[:5000]}")
+                            except:
+                                try:
+                                    text = file['bytes'].decode('latin-1', errors='ignore')
+                                    prompt_parts.append(f"File: {file['name']}\n\n{text[:5000]}")
+                                except:
+                                    prompt_parts.append(f"Binary file: {file['name']}")
 
                 response = model.generate_content(prompt_parts)
                 ai_response = response.text
             except Exception as e:
                 print(f"Multimodal Gemini error: {e}")
-                ai_response = "Sorry, I encountered an error trying to respond."
+                ai_response = "Sorry, I encountered an error trying to process your files."
 
         # Final fallback if all APIs failed
         if not ai_response:
@@ -1049,6 +1434,27 @@ def save_chat_history():
     except Exception as e:
         return jsonify({'success': False, 'error': 'Failed to generate chat history.'}), 500
 
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Resource not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(413)
+def too_large(error):
+    return jsonify({'error': 'File too large (max 10MB)'}), 413
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({'error': 'Rate limit exceeded. Please try again later.'}), 429
+
 if __name__ == '__main__':
+    # Create upload folder if it doesn't exist
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
