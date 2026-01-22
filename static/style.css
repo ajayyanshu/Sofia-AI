@@ -1,3 +1,5 @@
+[file name]: style.css
+[file content begin]
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); 
 
 ::selection {
@@ -815,3 +817,106 @@ button:focus, input:focus, textarea:focus {
 .file-type-doc { border-left: 3px solid #2563eb; }
 .file-type-code { border-left: 3px solid #10b981; }
 .file-type-text { border-left: 3px solid #6b7280; }
+
+/* --- Toast Notifications --- */
+.toast-notification {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideIn 0.3s ease-out;
+    max-width: 300px;
+}
+
+.toast-notification.slide-out {
+    animation: slideOut 0.3s ease-in;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* File Preview Improvements */
+.preview-item {
+    transition: all 0.2s ease;
+}
+
+.preview-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.preview-item.image-preview {
+    width: 80px;
+    height: 80px;
+}
+
+.preview-item.doc-preview {
+    width: 120px;
+    height: 90px;
+}
+
+/* Audio Wave Animation */
+@keyframes audio-wave {
+    0%, 100% {
+        height: 8px;
+    }
+    50% {
+        height: 16px;
+    }
+}
+
+.animate-audio-wave {
+    animation: audio-wave 1s ease-in-out infinite;
+}
+
+/* Chat History Improvements */
+.chat-history-item.active {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+    border-left: 4px solid #6366f1;
+}
+
+/* Code Copy Button */
+.code-copy-btn {
+    transition: all 0.2s ease;
+}
+
+.code-copy-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Loading Animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+[file content end]
