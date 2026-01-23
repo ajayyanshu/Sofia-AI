@@ -350,7 +350,7 @@ def get_ai_summary(text_content):
     if not text_content or text_content.isspace():
         return "No text content to summarize."
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog") 
+        model = genai.GenerativeModel("gemini-2.5-flash-lite") 
         max_length = 80000 
         if len(text_content) > max_length:
             text_content = text_content[:max_length]
@@ -1136,7 +1136,7 @@ def chat():
                 Focus on language-specific vulnerabilities for {language}."""
                 
                 if GOOGLE_API_KEY:
-                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog")
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     full_prompt = f"{CODE_SECURITY_PROMPT}\n\n{combined_text}"
                     response = gemini_model.generate_content(full_prompt)
                     gemini_response = response.text
@@ -1160,7 +1160,7 @@ def chat():
                 
                 Be thorough and extract as much useful information as possible."""
                 
-                gemini_model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog")
+                gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                 full_prompt = f"{DOCUMENT_ANALYSIS_PROMPT}\n\n{combined_text}"
                 response = gemini_model.generate_content(full_prompt)
                 gemini_response = response.text
@@ -1184,14 +1184,14 @@ def chat():
                         context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
                     
                     full_context = f"{SYSTEM_PROMPT}\n\n{'\n\n'.join(context_parts)}\n\n--- USER QUESTION ---\n{combined_text}"
-                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog")
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     response = gemini_model.generate_content(full_context)
                     gemini_response = response.text
                     print("✅ Gemini successfully processed text with context")
                     
                 else:
                     # General chat - use Gemini with history
-                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog")
+                    gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     if gemini_history:
                         full_history = gemini_history + [{'role': 'user', 'parts': [combined_text]}]
                         response = gemini_model.generate_content(full_history)
@@ -1329,7 +1329,7 @@ def chat():
                 if transcript: 
                     # Try Gemini first
                     try:
-                        model = genai.GenerativeModel("gemini-2.5-flash-native-audio-dialog")
+                        model = genai.GenerativeModel("gemini-2.5-flash-lite")
                         prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
                         response = model.generate_content(prompt)
                         ai_response = response.text
