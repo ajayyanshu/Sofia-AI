@@ -1083,7 +1083,7 @@ def chat():
         if image_files:
             print("🔍 Attempting to process images with Gemini...")
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash")
+                model = genai.GenerativeModel("gemini-2.5-flash-lite")
                 prompt_parts = [combined_text] if combined_text else ["Analyze this image"]
                 
                 for image_file in image_files:
