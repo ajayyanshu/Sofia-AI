@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Sofia AI </title>
+    <title>Sign Up - Sofia AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
@@ -143,7 +143,7 @@
         const signUpForm = document.getElementById('sign-up-form');
         let tempUserEmail = "";
         let resendTimer = null;
-        let countdown = 60;
+        let countdown = 5; // Changed from 60 to 5 seconds
 
         // --- Toggle Password Visibility ---
         document.addEventListener('click', (e) => {
@@ -216,7 +216,7 @@
                         <p>Didn't receive a code?</p>
                         <div class="flex items-center justify-center mt-1">
                             <button id="resend-otp-btn" class="resend-btn" disabled>
-                                Resend OTP (<span id="countdown">60</span>s)
+                                Resend OTP (<span id="countdown">5</span>s)
                             </button>
                             <span class="mx-2">or</span>
                             <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium">
@@ -234,7 +234,7 @@
         // --- Start Resend Timer ---
         function startResendTimer() {
             clearInterval(resendTimer);
-            countdown = 60;
+            countdown = 5; // Changed from 60 to 5 seconds
             const countdownEl = document.getElementById('countdown');
             const resendBtn = document.getElementById('resend-otp-btn');
             
