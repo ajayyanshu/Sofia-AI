@@ -871,7 +871,7 @@ def delete_library_item(item_id):
         print(f"Error deleting library item: {e}")
         return jsonify({"error": "Could not delete library item"}), 500
 
-# --- Chat Logic with Auto Fallback ---
+# --- Chat Logic with Security Focus ---
 
 @app.route('/chat', methods=['POST'])
 @login_required
@@ -1076,6 +1076,10 @@ def chat():
         use_groq_fallback = False
         gemini_failed = False
         
+        # Sofia AI Identity - Updated to Security-Focused Multimodal Assistant
+        SOFIA_IDENTITY = "Sofia AI — Security-Focused Multimodal Assistant"
+        SECURITY_FOCUS = "I specialize in security analysis, threat detection, code scanning, and secure development practices."
+        
         # Try Gemini first for all file types
         gemini_response = None
         
@@ -1084,7 +1088,10 @@ def chat():
             print("🔍 Attempting to process images with Gemini...")
             try:
                 model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                prompt_parts = [combined_text] if combined_text else ["Analyze this image"]
+                prompt_parts = [f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Analyze these images for security-related content."]
+                
+                if combined_text:
+                    prompt_parts[0] += f"\n\nUser request: {combined_text}"
                 
                 for image_file in image_files:
                     try:
@@ -1109,7 +1116,7 @@ def chat():
             try:
                 language = detect_code_language(code_file_name, code_file_content)
                 
-                CODE_SECURITY_PROMPT = f"""You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. 
+                CODE_SECURITY_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
                 Analyzing {language} code for security vulnerabilities.
                 
                 Provide analysis in this format:
@@ -1151,14 +1158,17 @@ def chat():
         elif has_documents and extracted_texts:
             print("🔍 Attempting to analyze documents with Gemini...")
             try:
-                DOCUMENT_ANALYSIS_PROMPT = """You are 'Sofia AI', an expert document analyzer. 
-                Analyze the provided document content and provide:
-                1. Summary of the document
-                2. Key points and findings
-                3. Important data or statistics mentioned
-                4. Recommendations or conclusions
+                DOCUMENT_ANALYSIS_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                Analyze the provided document content with a security focus:
+                1. Security-related information in the document
+                2. Potential security risks mentioned
+                3. Compliance or security standards referenced
+                4. Security recommendations or best practices
                 
-                Be thorough and extract as much useful information as possible."""
+                Also provide:
+                5. Summary of the document
+                6. Key points and findings
+                7. Important data or statistics mentioned"""
                 
                 gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                 full_prompt = f"{DOCUMENT_ANALYSIS_PROMPT}\n\n{combined_text}"
@@ -1176,7 +1186,7 @@ def chat():
             print("🔍 Attempting text processing with Gemini...")
             try:
                 if (web_search_context or library_search_context):
-                    SYSTEM_PROMPT = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
+                    SYSTEM_PROMPT = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
                     context_parts = []
                     if web_search_context: 
                         context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
@@ -1190,13 +1200,14 @@ def chat():
                     print("✅ Gemini successfully processed text with context")
                     
                 else:
-                    # General chat - use Gemini with history
+                    # General chat - use Gemini with identity
+                    IDENTITY_PROMPT = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} I help with security analysis, threat detection, code scanning, and general assistance with a security focus."
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
                     if gemini_history:
-                        full_history = gemini_history + [{'role': 'user', 'parts': [combined_text]}]
+                        full_history = gemini_history + [{'role': 'user', 'parts': [f"{IDENTITY_PROMPT}\n\nUser: {combined_text}"]}]
                         response = gemini_model.generate_content(full_history)
                     else:
-                        response = gemini_model.generate_content(combined_text)
+                        response = gemini_model.generate_content(f"{IDENTITY_PROMPT}\n\nUser: {combined_text}")
                     gemini_response = response.text
                     print("✅ Gemini successfully processed text")
                     
@@ -1217,7 +1228,7 @@ def chat():
             # Handle different types of content with Groq
             if has_images:
                 # For images, we can only analyze the extracted text
-                IMAGE_ANALYSIS_PROMPT = """You are 'Sofia AI'. The user has uploaded images but I couldn't analyze them directly. 
+                IMAGE_ANALYSIS_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} The user has uploaded images but I couldn't analyze them directly. 
                 Please help the user with their query based on any text description they provided about the images.
                 
                 If the user asked about image content, explain that image analysis is currently unavailable but you can help with text-based queries."""
@@ -1237,7 +1248,7 @@ def chat():
                 # Code analysis with Groq
                 language = detect_code_language(code_file_name, code_file_content)
                 
-                CODE_SECURITY_PROMPT_GROQ = f"""You are 'Sofia-Sec-L-70B', a specialized AI Code Security Analyst. 
+                CODE_SECURITY_PROMPT_GROQ = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
                 Analyzing {language} code for security vulnerabilities.
                 
                 Provide analysis in this format:
@@ -1270,12 +1281,12 @@ def chat():
                 
             elif has_documents:
                 # Document analysis with Groq
-                DOCUMENT_ANALYSIS_PROMPT_GROQ = """You are 'Sofia AI', an expert document analyzer. 
-                Analyze the provided document content and provide:
-                1. Summary of the document
-                2. Key points and findings
-                3. Important data or statistics mentioned
-                4. Recommendations or conclusions"""
+                DOCUMENT_ANALYSIS_PROMPT_GROQ = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                Analyze the provided document content with a security focus:
+                1. Security-related information in the document
+                2. Potential security risks mentioned
+                3. Compliance or security standards referenced
+                4. Security recommendations or best practices"""
                 
                 groq_history = [
                     {"role": "system", "content": DOCUMENT_ANALYSIS_PROMPT_GROQ},
@@ -1292,7 +1303,7 @@ def chat():
             else:
                 # General text processing with Groq
                 if (web_search_context or library_search_context):
-                    SYSTEM_PROMPT_GROQ = "You are 'Sofia AI', an AI assistant. Answer based on the context provided. Cite sources when using web search results."
+                    SYSTEM_PROMPT_GROQ = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
                     context_parts = []
                     if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                     if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
@@ -1307,11 +1318,14 @@ def chat():
                         "Groq (Contextual Search Fallback)"
                     )
                 else:
-                    # General chat fallback
+                    # General chat fallback with identity
+                    identity_system = {"role": "system", "content": f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}"}
+                    openai_history_with_identity = [identity_system] + openai_history
+                    
                     groq_response = call_api(
                         "https://api.groq.com/openai/v1/chat/completions", 
                         {"Authorization": f"Bearer {GROQ_API_KEY}"}, 
-                        {"model": "llama-3.1-8b-instant", "messages": openai_history}, 
+                        {"model": "llama-3.1-8b-instant", "messages": openai_history_with_identity}, 
                         "Groq (General Fallback)"
                     )
             
@@ -1330,7 +1344,7 @@ def chat():
                     # Try Gemini first
                     try:
                         model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                        prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                        prompt = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Summarize this YouTube video transcript and provide key points with security analysis:\n\n{transcript}"
                         response = model.generate_content(prompt)
                         ai_response = response.text
                         print("✅ Gemini successfully analyzed YouTube transcript")
@@ -1338,9 +1352,9 @@ def chat():
                         print(f"❌ Gemini failed for YouTube: {e}")
                         # Try Groq fallback
                         if GROQ_API_KEY:
-                            youtube_prompt = f"Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                            youtube_prompt = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
                             groq_history = [
-                                {"role": "system", "content": "You are a YouTube video summarizer."},
+                                {"role": "system", "content": f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}"},
                                 {"role": "user", "content": youtube_prompt}
                             ]
                             ai_response = call_api(
