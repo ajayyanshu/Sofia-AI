@@ -387,7 +387,7 @@ def get_ai_summary(text_content):
         if len(text_content) > max_length:
             text_content = text_content[:max_length]
         prompt = (
-            "You are an expert summarizer. Please provide a concise, one-paragraph summary "
+            "As Sofia AI, a Security-Focused Multimodal Assistant, please provide a concise, one-paragraph summary "
             "of the following document. Focus on the main ideas and key takeaways.\n\n"
             f"--- DOCUMENT START ---\n{text_content}\n--- DOCUMENT END ---"
         )
@@ -408,6 +408,35 @@ def run_ai_summary_in_background(app, item_id, text_content):
                 )
             except Exception as e:
                 print(f"BACKGROUND_MONGO_ERROR: {e}")
+
+def handle_greetings_and_introductions(message):
+    """Handle greetings and introduction queries with Sofia AI identity"""
+    message_lower = message.lower().strip()
+    
+    greeting_responses = {
+        'hi': "Hello! I'm Sofia AI, your Security-Focused Multimodal Assistant. How can I help you today?",
+        'hello': "Hi there! I'm Sofia AI, ready to help with security analysis and more. What can I assist you with?",
+        'hey': "Hey! I'm Sofia AI, specializing in security-focused assistance. How can I help?",
+        'who are you': "I'm Sofia AI - a Security-Focused Multimodal Assistant. I specialize in security analysis, threat detection, code scanning, and secure development practices.",
+        'what are you': "I'm Sofia AI, a Security-Focused Multimodal Assistant designed to help with security analysis and general assistance.",
+        'what is your name': "My name is Sofia AI! I'm your Security-Focused Multimodal Assistant.",
+        'introduce yourself': "I'm Sofia AI, a Security-Focused Multimodal Assistant. I help with security analysis, threat detection, code scanning, and provide general assistance with a security focus.",
+        'good morning': "Good morning! I'm Sofia AI, your Security-Focused Assistant. Ready to help you today!",
+        'good afternoon': "Good afternoon! I'm Sofia AI, here to assist with your security and general queries.",
+        'good evening': "Good evening! I'm Sofia AI, your Security-Focused Multimodal Assistant. How can I help you?",
+        'how are you': "I'm functioning optimally as Sofia AI, ready to assist with security analysis and more! How can I help you today?"
+    }
+    
+    # Check for exact matches or contains
+    for key, response in greeting_responses.items():
+        if message_lower == key or message_lower.startswith(key + ' '):
+            return response
+    
+    # Check for variations
+    if any(word in message_lower for word in ['hi ', 'hello ', 'hey ']):
+        return "Hello! I'm Sofia AI. How can I assist you today?"
+    
+    return None
 
 # --- Page Rendering Routes ---
 
@@ -1034,12 +1063,33 @@ def chat():
     try:
         data = request.json
         user_message = data.get('text', '')
+
+        # Handle greetings and introductions immediately
+        greeting_response = handle_greetings_and_introductions(user_message)
+        if greeting_response:
+            return jsonify({'response': greeting_response})
+
         files_data = data.get('filesData', [])  # Array of files
         is_temporary = data.get('isTemporary', False)
         request_mode = data.get('mode')
         ai_response = None
         web_search_context = None
         library_search_context = None
+        
+        # Sofia AI Identity - Strongly enforced
+        SOFIA_IDENTITY = "Sofia AI"
+        FULL_IDENTITY = """I am Sofia AI, a Security-Focused Multimodal Assistant. 
+        I specialize in security analysis, threat detection, code scanning, and secure development practices. 
+        I do NOT say "I'm a large language model" or mention being trained by Google.
+        My identity is Sofia AI - Security-Focused Multimodal Assistant.
+
+        When greeting users or introducing myself, I say:
+        - "Hello! I'm Sofia AI, your Security-Focused Multimodal Assistant."
+        - "Hi there! I'm Sofia AI, ready to help with security analysis and more."
+        - "I'm Sofia AI, specializing in security-focused assistance."
+
+        I never use phrases like "I'm a large language model" or "trained by Google".
+        My responses always reflect my identity as Sofia AI."""
         
         # Process multiple files
         extracted_texts = []
@@ -1188,10 +1238,6 @@ def chat():
         use_groq_fallback = False
         gemini_failed = False
         
-        # Sofia AI Identity - Updated to Security-Focused Multimodal Assistant
-        SOFIA_IDENTITY = "Sofia AI — Security-Focused Multimodal Assistant"
-        SECURITY_FOCUS = "I specialize in security analysis, threat detection, code scanning, and secure development practices."
-        
         # Try Gemini first for all file types
         gemini_response = None
         
@@ -1200,7 +1246,7 @@ def chat():
             print("🔍 Attempting to process images with Gemini...")
             try:
                 model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                prompt_parts = [f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Analyze these images for security-related content."]
+                prompt_parts = [f"I am {SOFIA_IDENTITY}. As Sofia AI - Security-Focused Multimodal Assistant, analyze these images for security-related content."]
                 
                 if combined_text:
                     prompt_parts[0] += f"\n\nUser request: {combined_text}"
@@ -1228,7 +1274,7 @@ def chat():
             try:
                 language = detect_code_language(code_file_name, code_file_content)
                 
-                CODE_SECURITY_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                CODE_SECURITY_PROMPT = f"""As Sofia AI, a Security-Focused Multimodal Assistant.
                 Analyzing {language} code for security vulnerabilities.
                 
                 Provide analysis in this format:
@@ -1270,7 +1316,7 @@ def chat():
         elif has_documents and extracted_texts:
             print("🔍 Attempting to analyze documents with Gemini...")
             try:
-                DOCUMENT_ANALYSIS_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                DOCUMENT_ANALYSIS_PROMPT = f"""As Sofia AI, a Security-Focused Multimodal Assistant.
                 Analyze the provided document content with a security focus:
                 1. Security-related information in the document
                 2. Potential security risks mentioned
@@ -1298,7 +1344,7 @@ def chat():
             print("🔍 Attempting text processing with Gemini...")
             try:
                 if (web_search_context or library_search_context):
-                    SYSTEM_PROMPT = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
+                    SYSTEM_PROMPT = f"As Sofia AI, a Security-Focused Multimodal Assistant. Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
                     context_parts = []
                     if web_search_context: 
                         context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
@@ -1312,16 +1358,25 @@ def chat():
                     print("✅ Gemini successfully processed text with context")
                     
                 else:
-                    # General chat - use Gemini with identity
-                    IDENTITY_PROMPT = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} I help with security analysis, threat detection, code scanning, and general assistance with a security focus."
+                    # General chat - use Gemini with strong identity enforcement
                     gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                    
+                    # Create a system message that enforces identity
+                    system_message = {
+                        'role': 'user',
+                        'parts': [FULL_IDENTITY]
+                    }
+                    
+                    # Build conversation with identity enforced
                     if gemini_history:
-                        full_history = gemini_history + [{'role': 'user', 'parts': [f"{IDENTITY_PROMPT}\n\nUser: {combined_text}"]}]
-                        response = gemini_model.generate_content(full_history)
+                        # Add system message at the beginning of history
+                        enforced_history = [system_message] + gemini_history + [{'role': 'user', 'parts': [combined_text]}]
                     else:
-                        response = gemini_model.generate_content(f"{IDENTITY_PROMPT}\n\nUser: {combined_text}")
+                        enforced_history = [system_message, {'role': 'user', 'parts': [combined_text]}]
+                    
+                    response = gemini_model.generate_content(enforced_history)
                     gemini_response = response.text
-                    print("✅ Gemini successfully processed text")
+                    print("✅ Gemini successfully processed text with enforced identity")
                     
             except Exception as e:
                 print(f"❌ Gemini failed to process text: {e}")
@@ -1340,7 +1395,7 @@ def chat():
             # Handle different types of content with Groq
             if has_images:
                 # For images, we can only analyze the extracted text
-                IMAGE_ANALYSIS_PROMPT = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} The user has uploaded images but I couldn't analyze them directly. 
+                IMAGE_ANALYSIS_PROMPT = f"""I am {SOFIA_IDENTITY}. As Sofia AI, a Security-Focused Multimodal Assistant, the user has uploaded images but I couldn't analyze them directly. 
                 Please help the user with their query based on any text description they provided about the images.
                 
                 If the user asked about image content, explain that image analysis is currently unavailable but you can help with text-based queries."""
@@ -1360,7 +1415,7 @@ def chat():
                 # Code analysis with Groq
                 language = detect_code_language(code_file_name, code_file_content)
                 
-                CODE_SECURITY_PROMPT_GROQ = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                CODE_SECURITY_PROMPT_GROQ = f"""As Sofia AI, a Security-Focused Multimodal Assistant.
                 Analyzing {language} code for security vulnerabilities.
                 
                 Provide analysis in this format:
@@ -1393,7 +1448,7 @@ def chat():
                 
             elif has_documents:
                 # Document analysis with Groq
-                DOCUMENT_ANALYSIS_PROMPT_GROQ = f"""I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}
+                DOCUMENT_ANALYSIS_PROMPT_GROQ = f"""As Sofia AI, a Security-Focused Multimodal Assistant.
                 Analyze the provided document content with a security focus:
                 1. Security-related information in the document
                 2. Potential security risks mentioned
@@ -1415,7 +1470,7 @@ def chat():
             else:
                 # General text processing with Groq
                 if (web_search_context or library_search_context):
-                    SYSTEM_PROMPT_GROQ = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
+                    SYSTEM_PROMPT_GROQ = f"As Sofia AI, a Security-Focused Multimodal Assistant. Answer based on the context provided. Cite sources when using web search results. Focus on security implications where applicable."
                     context_parts = []
                     if web_search_context: context_parts.append(f"--- WEB SEARCH RESULTS ---\n{web_search_context}")
                     if library_search_context: context_parts.append(f"--- YOUR LIBRARY RESULTS ---\n{library_search_context}")
@@ -1430,8 +1485,11 @@ def chat():
                         "Groq (Contextual Search Fallback)"
                     )
                 else:
-                    # General chat fallback with identity
-                    identity_system = {"role": "system", "content": f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}"}
+                    # General chat fallback with strong identity
+                    identity_system = {
+                        "role": "system", 
+                        "content": FULL_IDENTITY + "\n\nIMPORTANT: Never say 'I'm a large language model' or mention being trained by Google. Always identify as Sofia AI - Security-Focused Multimodal Assistant."
+                    }
                     openai_history_with_identity = [identity_system] + openai_history
                     
                     groq_response = call_api(
@@ -1456,7 +1514,7 @@ def chat():
                     # Try Gemini first
                     try:
                         model = genai.GenerativeModel("gemini-2.5-flash-lite")
-                        prompt = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Summarize this YouTube video transcript and provide key points with security analysis:\n\n{transcript}"
+                        prompt = f"As Sofia AI, a Security-Focused Multimodal Assistant, summarize this YouTube video transcript and provide key points with security analysis:\n\n{transcript}"
                         response = model.generate_content(prompt)
                         ai_response = response.text
                         print("✅ Gemini successfully analyzed YouTube transcript")
@@ -1464,9 +1522,9 @@ def chat():
                         print(f"❌ Gemini failed for YouTube: {e}")
                         # Try Groq fallback
                         if GROQ_API_KEY:
-                            youtube_prompt = f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS} Summarize this YouTube video transcript and provide key points:\n\n{transcript}"
+                            youtube_prompt = f"As Sofia AI, a Security-Focused Multimodal Assistant, summarize this YouTube video transcript and provide key points:\n\n{transcript}"
                             groq_history = [
-                                {"role": "system", "content": f"I am {SOFIA_IDENTITY}. {SECURITY_FOCUS}"},
+                                {"role": "system", "content": f"As Sofia AI, a Security-Focused Multimodal Assistant."},
                                 {"role": "user", "content": youtube_prompt}
                             ]
                             ai_response = call_api(
