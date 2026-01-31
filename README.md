@@ -11,7 +11,7 @@
 ##  Key Features
 
 ###  Security & Education
-* **Multimodal Security Analysis ** Analyzing text, code, and security-related inputs to detect potential vulnerabilities.
+* **Multimodal Security Analysis:** Analyzing text, code, and security-related inputs to detect potential vulnerabilities.
 * **Secure Code Analysis:** Upload code files for instant vulnerability scanning and security recommendations.
 * **Threat Mitigation:** Built-in input validation to protect against prompt injection and jailbreak attempts.
 
@@ -53,3 +53,4 @@
 ##  Contact
 
 **Ajay Kumar** *Security Engineer & Developer* [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=flat&logo=linkedin)](https://linkedin.com/in/ajayyanshu/) [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=flat&logo=github)](https://github.com/ajayyanshu)
+Feedback or issues? Reach out at ajayyanshu@gmail.com
