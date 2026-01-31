@@ -1,4 +1,4 @@
-# Sofia AI  — Security-Focused Multimodal Assistant
+# Sofia AI — Security-Focused Multimodal Assistant
 
 > **A robust, multimodal AI assistant designed for cybersecurity education, real-time web intelligence, and secure code analysis.**
 
