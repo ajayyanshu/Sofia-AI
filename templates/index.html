@@ -162,8 +162,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Removed upgrade section -->
                     </div>
                 </div>
             </div>
@@ -183,40 +181,6 @@
             </div>
         </div>
     </div>
-    
-    <div id="cyber-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-            <div class="bg-indigo-600 p-4 text-white">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-bold" data-lang="cyberTraining">Learn Ethical Hacking</h2>
-                    <button id="close-cyber-modal" class="text-white/80 hover:text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-                <p class="text-indigo-100 text-sm mt-1">Master cybersecurity with AI guidance</p>
-            </div>
-            <div class="p-6 space-y-4">
-                <p class="text-gray-600 dark:text-gray-300 text-sm">
-                    Enable this mode to convert <strong>Sofia AI</strong> into an expert Ethical Hacking instructor. 
-                    She will teach you penetration testing, defense strategies, and safety protocols.
-                </p>
-                
-                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 p-3 rounded-lg flex gap-3">
-                    <span class="text-xl">⚠️</span>
-                    <p class="text-xs text-yellow-800 dark:text-yellow-200">
-                        <strong>Disclaimer:</strong> This tool is for educational purposes only. Always obtain permission before testing systems.
-                    </p>
-                </div>
-
-                <button id="toggle-hacking-mode-btn" class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-green-600 hover:text-white text-gray-800 dark:text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 group">
-                    <span id="hacking-mode-status-text">Enable Teacher Mode</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <aside id="sidebar" class="absolute z-40 w-72 bg-gray-50 border-r border-gray-200 flex-shrink-0 flex flex-col h-full -translate-x-full">
         <div class="p-4 space-y-4">
@@ -233,13 +197,6 @@
             <button id="library-btn" class="sidebar-item w-full text-left">
                 <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                 <span data-lang="library">Library</span>
-            </button>
-            
-            <button id="cyber-training-btn" class="sidebar-item w-full text-left group">
-                <svg class="h-5 w-5 text-red-500 group-hover:text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span data-lang="cyberTraining">Cyber Training</span>
             </button>
         </div>
 
