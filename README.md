@@ -11,7 +11,7 @@
 ##  Key Features
 
 ###  Security & Education
-* **Teacher Mode (Ethical Hacking Instructor):** A specialized mode that transforms Sofia into an expert instructor, guiding users through penetration testing methodologies, defense strategies, and safety protocols.
+* **Multimodal Security Analysis ** Analyzing text, code, and security-related inputs to detect potential vulnerabilities.
 * **Secure Code Analysis:** Upload code files for instant vulnerability scanning and security recommendations.
 * **Threat Mitigation:** Built-in input validation to protect against prompt injection and jailbreak attempts.
 
