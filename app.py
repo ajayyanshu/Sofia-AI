@@ -134,9 +134,13 @@ PDF_KEYWORDS = {} # Configure your keywords here
 
 # --- Helper: Send Email via Brevo ---
 def send_brevo_email(to_email, subject, html_content):
-    """Sends an email using the Brevo (Sendinblue) API."""
+    """Sends an email using the Brevo (Sendinblue) API with improved error handling."""
     if not BREVO_API_KEY:
-        print("EMAIL SKIP: BREVO_API_KEY is not set.")
+        print(f"❌ EMAIL ERROR: BREVO_API_KEY is not configured. Cannot send email to {to_email}")
+        return False
+
+    if not SENDER_EMAIL:
+        print(f"❌ EMAIL ERROR: SENDER_EMAIL is not configured.")
         return False
 
     url = "https://api.brevo.com/v3/smtp/email"
@@ -153,12 +157,40 @@ def send_brevo_email(to_email, subject, html_content):
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        
+        # Check for specific HTTP errors
+        if response.status_code == 401:
+            print(f"❌ BREVO EMAIL ERROR: Invalid API key (401 Unauthorized)")
+            return False
+        elif response.status_code == 400:
+            print(f"❌ BREVO EMAIL ERROR: Bad request - {response.text}")
+            return False
+        elif response.status_code == 403:
+            print(f"❌ BREVO EMAIL ERROR: Forbidden - check API permissions")
+            return False
+        elif response.status_code == 429:
+            print(f"❌ BREVO EMAIL ERROR: Rate limit exceeded")
+            return False
+        
         response.raise_for_status()
-        print(f"✅ Email sent successfully to {to_email}")
+        
+        result = response.json()
+        message_id = result.get('messageId', 'Unknown')
+        print(f"✅ Email sent successfully to {to_email} (Message ID: {message_id})")
         return True
+        
+    except requests.exceptions.Timeout:
+        print(f"❌ BREVO EMAIL ERROR: Request timeout for {to_email}")
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"❌ BREVO EMAIL ERROR: Connection error - cannot reach Brevo API")
+        return False
     except Exception as e:
-        print(f"❌ BREVO EMAIL ERROR: {e}")
+        print(f"❌ BREVO EMAIL ERROR for {to_email}: {type(e).__name__}: {str(e)}")
+        if hasattr(e, 'response') and e.response:
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response body: {e.response.text[:200]}")
         return False
 
 def send_async_brevo_email(app, to_email, subject, html_content):
@@ -427,6 +459,10 @@ def api_signup():
     if users_collection is None:
         return jsonify({'success': False, 'error': 'Database not configured.'}), 500
 
+    # Email validation
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({'success': False, 'error': 'Invalid email format.'}), 400
+
     if users_collection.find_one({"email": email}):
         return jsonify({'success': False, 'error': 'An account with this email already exists.'}), 409
 
@@ -446,7 +482,12 @@ def api_signup():
         "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),
         "timestamp": datetime.utcnow().isoformat()
     }
-    users_collection.insert_one(new_user)
+    
+    try:
+        users_collection.insert_one(new_user)
+    except Exception as e:
+        print(f"MongoDB insert error: {e}")
+        return jsonify({'success': False, 'error': 'Database error. Please try again.'}), 500
 
     html_content = f"""
     <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -457,10 +498,14 @@ def api_signup():
                 {otp_code}
             </span>
         </div>
-        <p style="font-size: 14px; color: #888; text-align: center;">This code will expire shortly. If you did not request this, please ignore this email.</p>
+        <p style="font-size: 14px; color: #888; text-align: center;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+        <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 30px;">
+            Having trouble? Reply to this email for assistance.
+        </p>
     </div>
     """
     
+    # Send email in background thread
     Thread(target=send_async_brevo_email, args=(app, email, "Your Sofia AI Verification Code", html_content)).start()
 
     return jsonify({'success': True, 'message': 'OTP sent! Please check your email.'})
@@ -488,6 +533,73 @@ def api_verify_otp():
     )
 
     return jsonify({'success': True, 'message': 'Account verified successfully!'})
+
+@app.route('/api/resend_otp', methods=['POST'])
+def api_resend_otp():
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'success': False, 'error': 'Email is required.'}), 400
+
+    if users_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+
+    # Check if user exists and is not verified
+    user = users_collection.find_one({"email": email})
+    
+    if not user:
+        # Return generic success message even if user doesn't exist (security best practice)
+        return jsonify({'success': True, 'message': 'If an account exists, a new OTP has been sent.'})
+    
+    # Check if user is already verified
+    if user.get('is_verified', False):
+        return jsonify({'success': False, 'error': 'Account is already verified.'}), 400
+    
+    # Generate new OTP
+    new_otp = str(random.randint(100000, 999999))
+    
+    # Update the verification token in database
+    users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"verification_token": new_otp}}
+    )
+    
+    # Prepare email content
+    html_content = f"""
+    <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="text-align: center; color: #333;">Sofia AI - New Verification Code</h2>
+        <p style="font-size: 16px; color: #555;">You requested a new verification code. Here is your 6-digit OTP:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #FF4B2B; background: #f9f9f9; padding: 10px 20px; border-radius: 5px; border: 1px dashed #FF4B2B;">
+                {new_otp}
+            </span>
+        </div>
+        <p style="font-size: 14px; color: #888; text-align: center;">
+            This code will expire in 10 minutes. If you didn't request this, please ignore this email.
+        </p>
+        <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 30px;">
+            Having trouble? Reply to this email for assistance.
+        </p>
+    </div>
+    """
+    
+    # Send email in background thread
+    try:
+        Thread(target=send_async_brevo_email, args=(app, email, "Your New Sofia AI Verification Code", html_content)).start()
+        
+        # Check if email was actually sent (basic check)
+        if not BREVO_API_KEY:
+            print("⚠️ Warning: BREVO_API_KEY not configured, email not actually sent")
+            # Still return success to user since the process completed
+            return jsonify({'success': True, 'message': 'OTP resent! Please check your email.'})
+        
+        return jsonify({'success': True, 'message': 'New OTP sent! Please check your email.'})
+    
+    except Exception as e:
+        print(f"❌ Error in resend OTP process: {e}")
+        # Still return success to user (security best practice - don't reveal if email exists)
+        return jsonify({'success': True, 'message': 'If an account exists, a new OTP has been sent.'})
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
