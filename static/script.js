@@ -1620,9 +1620,18 @@ async function fetchAndDisplayUserInfo() {
 }
 
 function initializeApp() {
-    const savedTheme = localStorage.getItem('theme') || 'system';
+    // CHANGED: Default theme from 'system' to 'light'
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    
+    // Update theme button selection
     const initialThemeBtn = document.getElementById(`theme-${savedTheme}`);
-    if (initialThemeBtn) initialThemeBtn.click();
+    if (initialThemeBtn) {
+        // Remove selected classes from all theme buttons
+        themeBtns.forEach(b => b.classList.remove('border-indigo-600', 'border-2', 'ring-2', 'ring-indigo-200'));
+        // Add selected classes to the correct theme button
+        initialThemeBtn.classList.add('border-indigo-600', 'border-2', 'ring-2', 'ring-indigo-200');
+    }
+    
     applyTheme(savedTheme);
 
     populateLanguages();
