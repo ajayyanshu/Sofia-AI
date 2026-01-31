@@ -43,7 +43,7 @@
 
 ---
 
-##  Interface & Demo
+##  Interface
 ![Sofia AI Dashboard](https://ajayyanshu.github.io/Sofia-AI/logo/image.PNG)
 
 ---
