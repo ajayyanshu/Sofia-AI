@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Sofia AI</title>
+    <title>Sign Up - Sofia AI </title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
@@ -74,6 +74,22 @@
             font-size: 1.5rem;
             text-align: center;
         }
+
+        .resend-btn {
+            background: none;
+            border: none;
+            color: #3B82F6;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin-left: 5px;
+        }
+        
+        .resend-btn:disabled {
+            color: #9CA3AF;
+            cursor: not-allowed;
+        }
         
         @media (max-width: 480px) {
             .form-container {
@@ -126,6 +142,8 @@
         const authContent = document.getElementById('auth-content');
         const signUpForm = document.getElementById('sign-up-form');
         let tempUserEmail = "";
+        let resendTimer = null;
+        let countdown = 60;
 
         // --- Toggle Password Visibility ---
         document.addEventListener('click', (e) => {
@@ -163,6 +181,7 @@
 
                 if (response.ok && data.success) {
                     showOTPVerificationUI(email);
+                    startResendTimer();
                 } else {
                     errorEl.textContent = data.error || "An unknown error occurred.";
                     submitBtn.disabled = false;
@@ -194,13 +213,46 @@
                     <p id="otp-error" class="text-red-500 text-sm mt-2 h-5"></p>
                     
                     <div class="mt-6 text-xs text-gray-400">
-                        <P> Didn't receive a code? </p> 
-                        <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium mt-1">Change Email</button>
+                        <p>Didn't receive a code?</p>
+                        <div class="flex items-center justify-center mt-1">
+                            <button id="resend-otp-btn" class="resend-btn" disabled>
+                                Resend OTP (<span id="countdown">60</span>s)
+                            </button>
+                            <span class="mx-2">or</span>
+                            <button onclick="location.reload()" class="text-blue-600 hover:underline font-medium">
+                                Change Email
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
 
             document.getElementById('verify-otp-btn').addEventListener('click', handleOTPVerification);
+            document.getElementById('resend-otp-btn').addEventListener('click', handleResendOTP);
+        }
+
+        // --- Start Resend Timer ---
+        function startResendTimer() {
+            clearInterval(resendTimer);
+            countdown = 60;
+            const countdownEl = document.getElementById('countdown');
+            const resendBtn = document.getElementById('resend-otp-btn');
+            
+            if (countdownEl) countdownEl.textContent = countdown;
+            if (resendBtn) resendBtn.disabled = true;
+            
+            resendTimer = setInterval(() => {
+                countdown--;
+                if (countdownEl) countdownEl.textContent = countdown;
+                
+                if (countdown <= 0) {
+                    clearInterval(resendTimer);
+                    if (resendBtn) {
+                        resendBtn.disabled = false;
+                        resendBtn.innerHTML = 'Resend OTP';
+                    }
+                }
+            }, 1000);
         }
 
         // --- Handle OTP Verification ---
@@ -228,6 +280,7 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
+                    clearInterval(resendTimer);
                     authContent.innerHTML = `
                         <div class="text-center py-8">
                             <i class="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
@@ -247,6 +300,55 @@
                 errorEl.textContent = "Server error. Please try again.";
                 verifyBtn.disabled = false;
                 verifyBtn.textContent = "Verify & Activate";
+            }
+        }
+
+        // --- Handle Resend OTP ---
+        async function handleResendOTP() {
+            const errorEl = document.getElementById('otp-error');
+            const resendBtn = document.getElementById('resend-otp-btn');
+            
+            if (!tempUserEmail) {
+                errorEl.textContent = "Email not found. Please restart signup.";
+                return;
+            }
+
+            errorEl.textContent = "";
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = "Sending...";
+
+            try {
+                const response = await fetch('/api/resend_otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: tempUserEmail })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    errorEl.textContent = "";
+                    errorEl.style.color = "green";
+                    errorEl.textContent = "New OTP sent successfully!";
+                    
+                    // Reset the timer
+                    startResendTimer();
+                    
+                    // Clear success message after 3 seconds
+                    setTimeout(() => {
+                        errorEl.textContent = "";
+                        errorEl.style.color = "";
+                    }, 3000);
+                } else {
+                    errorEl.textContent = data.error || "Failed to resend OTP.";
+                    resendBtn.disabled = false;
+                    resendBtn.innerHTML = "Resend OTP";
+                }
+            } catch (error) {
+                console.error('Resend OTP Error:', error);
+                errorEl.textContent = "Could not connect to server.";
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = "Resend OTP";
             }
         }
     </script>
