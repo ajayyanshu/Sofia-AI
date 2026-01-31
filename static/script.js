@@ -32,13 +32,6 @@ const tempChatBanner = document.getElementById('temp-chat-banner');
 const saveToDbBtn = document.getElementById('save-to-db-btn');
 const clearAllFilesBtn = document.getElementById('clear-all-files-btn');
 
-// Ethical Hacking Mode Elements
-const cyberTrainingBtn = document.getElementById('cyber-training-btn');
-const cyberModal = document.getElementById('cyber-modal');
-const closeCyberModalBtn = document.getElementById('close-cyber-modal');
-const toggleHackingModeBtn = document.getElementById('toggle-hacking-mode-btn');
-const hackingModeStatusText = document.getElementById('hacking-mode-status-text');
-
 // Contact Us Elements
 const contactMenuItem = document.getElementById('contact-menu-item');
 const contactModal = document.getElementById('contact-modal');
@@ -89,9 +82,6 @@ let isTemporaryChatActive = false;
 let chatHistory = [];
 let currentChat = [];
 let currentChatId = null;
-
-// Hacking Mode State
-let isEthicalHackingMode = false;
 
 // Plan & Usage State
 let usageCounts = {
@@ -258,62 +248,6 @@ contactModal.addEventListener('click', (e) => {
     }
 });
 
-
-// --- Ethical Hacking Mode Logic ---
-cyberTrainingBtn.addEventListener('click', () => {
-    if (!sidebar.classList.contains('-translate-x-full')) closeSidebar();
-    cyberModal.classList.remove('hidden');
-    cyberModal.classList.add('flex');
-});
-
-closeCyberModalBtn.addEventListener('click', () => {
-    cyberModal.classList.add('hidden');
-    cyberModal.classList.remove('flex');
-});
-
-toggleHackingModeBtn.addEventListener('click', () => {
-    isEthicalHackingMode = !isEthicalHackingMode;
-    updateHackingModeUI();
-    cyberModal.classList.add('hidden');
-    cyberModal.classList.remove('flex');
-    
-    const statusMsg = isEthicalHackingMode 
-        ? "👨‍💻 **Ethical Hacking Teacher Mode Activated.**\nAsk me about penetration testing, network security, or defense mechanisms."
-        : "🔄 **Standard Mode Restored.**\nI am back to being your general AI assistant.";
-        
-    addMessage({ text: statusMsg, sender: 'system' });
-    
-    if (isEthicalHackingMode) startNewChat(); 
-});
-
-/**
- * UPDATED FUNCTION: Removes the background box and 
- * shows plain text for Cyber Training Mode On.
- */
-function updateHackingModeUI() {
-    const headerTitle = document.querySelector('header span');
-    if (isEthicalHackingMode) {
-        toggleHackingModeBtn.classList.remove('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
-        toggleHackingModeBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
-        hackingModeStatusText.textContent = "Disable Teacher Mode";
-        
-        // Removed green background and padding; displaying only text
-        if (headerTitle) {
-            headerTitle.innerHTML = 'Sofia AI <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">Cyber Training Mode On</span>';
-        }
-        
-    } else {
-        toggleHackingModeBtn.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-white', 'hover:bg-green-600');
-        toggleHackingModeBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
-        hackingModeStatusText.textContent = "Enable Teacher Mode";
-        
-        if (headerTitle) {
-            headerTitle.textContent = 'Sofia AI';
-        }
-    }
-}
-
-
 // --- Language and Theme Logic ---
 let currentLang = 'en';
 const translations = {
@@ -339,7 +273,6 @@ const translations = {
         sofiaTitle: 'Sofia AI',
         uploadCode: 'Upload code',
         usagePlan: 'Usage & Plan',
-        cyberTraining: 'Cyber Training',
         delete: 'Delete',
         emailVerification: 'Email Verification',
         logoutAllDevices: 'Log out of all devices',
@@ -387,7 +320,6 @@ const translations = {
         sofiaTitle: 'सोफिया एआई',
         uploadCode: 'कोड अपलोड करें',
         usagePlan: 'उपयोग और योजना',
-        cyberTraining: 'साइबर प्रशिक्षण',
         delete: 'हटाएं',
         emailVerification: 'ईमेल सत्यापन',
         logoutAllDevices: 'सभी उपकरणों से लॉग आउट करें',
@@ -435,7 +367,6 @@ const translations = {
         sofiaTitle: 'সোফিয়া এআই',
         uploadCode: 'কোড আপলোড করুন',
         usagePlan: 'ব্যবহার এবং পরিকল্পনা',
-        cyberTraining: 'সাইবার প্রশিক্ষণ',
         delete: 'মুছুন',
         emailVerification: 'ইমেল যাচাইকরণ',
         logoutAllDevices: 'সমস্ত ডিভাইস থেকে লগ আউট করুন',
@@ -489,9 +420,6 @@ function applyLanguage(lang) {
     const usageTabSpan = document.querySelector('#usage-tab-btn span');
     if (usageTabSpan) usageTabSpan.textContent = translations[lang]['usagePlan'];
 
-    const cyberTrainingSpan = document.querySelector('#cyber-training-btn span');
-    if (cyberTrainingSpan) cyberTrainingSpan.textContent = translations[lang]['cyberTraining'];
-    
     const themeLabel = document.querySelector('#general-settings-content label');
     if (themeLabel) themeLabel.textContent = translations[lang]['themeLabel'];
 
@@ -794,13 +722,6 @@ async function sendMessage() {
     const typingIndicator = addTypingIndicator();
 
     let textToSend = text;
-    if (isEthicalHackingMode) {
-        textToSend = `[SYSTEM: You are now an Expert Ethical Hacking Teacher.
-        - Your goal is to teach the user about cybersecurity, penetration testing, and network defense.
-        - Explain concepts clearly (e.g., SQL Injection, XSS, Phishing) but ALWAYS emphasize the legal and ethical boundaries.
-        - If the user asks for malicious code, refuse and explain *how* to secure against it instead.
-        - Use emojis like 🛡️, 💻, 🔐 to make learning engaging.]\n\nUser Question: "${text}"`;
-    }
 
     try {
         // UPDATED: Send array of files to server
@@ -1443,9 +1364,6 @@ function loadChat(chatId) {
 
     currentChat.forEach(message => addMessage(message));
     renderChatHistorySidebar();
-    
-    // FIX: Update hacking mode UI when chat loads
-    updateHackingModeUI();
 }
 
 function startNewChat() {
@@ -1465,9 +1383,6 @@ function startNewChat() {
     clearAllFiles();
     messageInput.value = '';
     renderChatHistorySidebar();
-    
-    // FIX: Update hacking mode UI when starting new chat
-    updateHackingModeUI();
     
     const welcomeH1 = welcomeMessageContainer.querySelector('h1');
     if (welcomeH1) {
@@ -1715,9 +1630,6 @@ function initializeApp() {
     loadChatsFromDB();
     
     fetchAndDisplayUserInfo();
-    
-    // FIX: Initialize hacking mode UI
-    updateHackingModeUI();
     
     const welcomeH1 = document.querySelector('#welcome-message-container h1');
     if (welcomeH1) {
