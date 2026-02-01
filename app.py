@@ -70,6 +70,7 @@ conversations_collection = None
 users_collection = None
 library_collection = None
 feedback_collection = None  # NEW: Feedback collection
+user_activity_collection = None  # NEW: User activity collection
 
 if MONGO_URI:
     try:
@@ -83,8 +84,9 @@ if MONGO_URI:
         conversations_collection = db.get_collection("conversations")
         users_collection = db.get_collection("users")
         library_collection = db.get_collection("library_items")
-        feedback_collection = db.get_collection("feedback")  # NEW: Initialize feedback collection
-        print("✅ Successfully connected to MongoDB with feedback collection.")
+        feedback_collection = db.get_collection("feedback")
+        user_activity_collection = db.get_collection("user_activity")  # NEW: Initialize user activity collection
+        print("✅ Successfully connected to MongoDB with all collections.")
     except Exception as e:
         print(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
 else:
@@ -104,6 +106,11 @@ class User(UserMixin):
         self.isPremium = user_data.get("isPremium", False)
         self.session_id = user_data.get("session_id")
         self.is_verified = user_data.get("is_verified", False)
+        self.device_info = user_data.get("device_info", {})
+        self.ip_address = user_data.get("ip_address", "")
+        self.location = user_data.get("location", {})
+        self.last_login = user_data.get("last_login")
+        self.login_history = user_data.get("login_history", [])
 
     @staticmethod
     def get(user_id):
@@ -133,6 +140,185 @@ GITHUB_USER = os.environ.get("GITHUB_USER")
 GITHUB_REPO = os.environ.get("GITHUB_REPO")
 GITHUB_FOLDER_PATH = os.environ.get("GITHUB_FOLDER_PATH", "")
 PDF_KEYWORDS = {} # Configure your keywords here
+
+# --- Helper Functions for Device and IP Tracking ---
+def get_client_ip(request):
+    """Get client IP address from request"""
+    if request.headers.get('X-Forwarded-For'):
+        ip = request.headers['X-Forwarded-For'].split(',')[0]
+    elif request.headers.get('X-Real-IP'):
+        ip = request.headers['X-Real-IP']
+    else:
+        ip = request.remote_addr
+    return ip
+
+def get_device_info(request):
+    """Extract device information from User-Agent"""
+    user_agent_string = request.headers.get('User-Agent', '')
+    
+    # Simple parsing without external library
+    device_info = {
+        'user_agent': user_agent_string[:500],
+        'is_mobile': False,
+        'is_tablet': False,
+        'is_pc': True,
+        'is_bot': False,
+        'browser': 'Unknown',
+        'os': 'Unknown',
+        'device': 'Unknown'
+    }
+    
+    # Basic browser detection
+    user_agent_lower = user_agent_string.lower()
+    if 'mobile' in user_agent_lower:
+        device_info['is_mobile'] = True
+        device_info['is_pc'] = False
+        device_info['device'] = 'Mobile'
+    elif 'tablet' in user_agent_lower or 'ipad' in user_agent_lower:
+        device_info['is_tablet'] = True
+        device_info['is_pc'] = False
+        device_info['device'] = 'Tablet'
+    
+    # Browser detection
+    if 'chrome' in user_agent_lower and 'edge' not in user_agent_lower:
+        device_info['browser'] = 'Chrome'
+    elif 'firefox' in user_agent_lower:
+        device_info['browser'] = 'Firefox'
+    elif 'safari' in user_agent_lower and 'chrome' not in user_agent_lower:
+        device_info['browser'] = 'Safari'
+    elif 'edge' in user_agent_lower:
+        device_info['browser'] = 'Edge'
+    elif 'opera' in user_agent_lower:
+        device_info['browser'] = 'Opera'
+    
+    # OS detection
+    if 'windows' in user_agent_lower:
+        device_info['os'] = 'Windows'
+    elif 'mac os' in user_agent_lower or 'macos' in user_agent_lower:
+        device_info['os'] = 'macOS'
+    elif 'linux' in user_agent_lower:
+        device_info['os'] = 'Linux'
+    elif 'android' in user_agent_lower:
+        device_info['os'] = 'Android'
+    elif 'ios' in user_agent_lower or 'iphone' in user_agent_lower:
+        device_info['os'] = 'iOS'
+    
+    # Bot detection
+    bot_keywords = ['bot', 'crawler', 'spider', 'scraper', 'curl', 'wget', 'python', 'java', 'httpclient']
+    if any(keyword in user_agent_lower for keyword in bot_keywords):
+        device_info['is_bot'] = True
+    
+    return device_info
+
+def get_location_from_ip(ip):
+    """Get location information from IP address"""
+    try:
+        # For localhost or private IPs
+        if ip in ['127.0.0.1', 'localhost'] or ip.startswith(('192.168.', '10.', '172.')):
+            return {
+                'ip': ip,
+                'city': 'Local Network',
+                'region': 'Local',
+                'country': 'Local',
+                'country_code': 'LOCAL',
+                'isp': 'Local Network',
+                'is_local': True
+            }
+        
+        # Using ip-api.com (free tier) with timeout
+        response = requests.get(f'http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query', 
+                               timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                return {
+                    'ip': data.get('query', ip),
+                    'city': data.get('city', 'Unknown'),
+                    'region': data.get('regionName', 'Unknown'),
+                    'country': data.get('country', 'Unknown'),
+                    'country_code': data.get('countryCode', 'Unknown'),
+                    'latitude': data.get('lat'),
+                    'longitude': data.get('lon'),
+                    'timezone': data.get('timezone', 'Unknown'),
+                    'isp': data.get('isp', 'Unknown'),
+                    'org': data.get('org', 'Unknown'),
+                    'is_local': False
+                }
+    except Exception as e:
+        print(f"Error getting location for IP {ip}: {e}")
+    
+    return {
+        'ip': ip,
+        'city': 'Unknown',
+        'region': 'Unknown',
+        'country': 'Unknown',
+        'country_code': 'Unknown',
+        'is_local': False
+    }
+
+def log_user_activity(user_id, activity_type, request, metadata=None):
+    """Log user activity to MongoDB"""
+    if user_activity_collection is None:
+        return
+    
+    try:
+        ip = get_client_ip(request)
+        device_info = get_device_info(request)
+        location = get_location_from_ip(ip)
+        
+        # Clean metadata to ensure it's JSON serializable
+        clean_metadata = {}
+        if metadata:
+            for key, value in metadata.items():
+                if isinstance(value, (str, int, float, bool, type(None))):
+                    clean_metadata[key] = value
+                else:
+                    clean_metadata[key] = str(value)
+        
+        activity_record = {
+            'user_id': ObjectId(user_id),
+            'activity_type': activity_type,
+            'timestamp': datetime.utcnow(),
+            'ip_address': ip,
+            'device_info': device_info,
+            'location': location,
+            'metadata': clean_metadata,
+            'endpoint': request.endpoint,
+            'method': request.method,
+            'user_agent': request.headers.get('User-Agent', '')[:200]
+        }
+        
+        user_activity_collection.insert_one(activity_record)
+        print(f"✅ Logged activity: {activity_type} for user {user_id}")
+    except Exception as e:
+        print(f"Error logging user activity: {e}")
+
+def log_anonymous_activity(ip_address, activity_type, request, metadata=None):
+    """Log activity for anonymous users (not logged in)"""
+    if user_activity_collection is None:
+        return
+    
+    try:
+        device_info = get_device_info(request)
+        location = get_location_from_ip(ip_address)
+        
+        activity_record = {
+            'user_id': None,
+            'activity_type': activity_type,
+            'timestamp': datetime.utcnow(),
+            'ip_address': ip_address,
+            'device_info': device_info,
+            'location': location,
+            'metadata': metadata or {},
+            'endpoint': request.endpoint,
+            'method': request.method,
+            'user_agent': request.headers.get('User-Agent', '')[:200]
+        }
+        
+        user_activity_collection.insert_one(activity_record)
+        print(f"✅ Logged anonymous activity: {activity_type} from IP {ip_address}")
+    except Exception as e:
+        print(f"Error logging anonymous activity: {e}")
 
 # --- Helper: Send Email via Brevo ---
 def send_brevo_email(to_email, subject, html_content):
@@ -448,30 +634,71 @@ def home():
     if not current_user.is_verified:
         logout_user()
         return redirect(url_for('login_page', error="Please verify your email address."))
-    return render_template('index.html') 
+    
+    # Log page visit activity
+    log_user_activity(current_user.id, 'page_visit', request, {
+        'page': 'home',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+    
+    return render_template('index.html')
 
 @app.route('/login.html', methods=['GET'])
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
+    
+    # Log anonymous page visit
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'page_visit', request, {
+        'page': 'login',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+    
     return render_template('login.html')
 
 @app.route('/signup.html', methods=['GET'])
 def signup_page():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
+    
+    # Log anonymous page visit
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'page_visit', request, {
+        'page': 'signup',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+    
     return render_template('signup.html')
 
 @app.route('/login')
 def login_redirect():
+    # Log redirect
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'redirect', request, {
+        'from': 'login_redirect',
+        'to': 'login_page'
+    })
     return redirect(url_for('login_page'))
 
 @app.route('/signup')
 def signup_redirect():
+    # Log redirect
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'redirect', request, {
+        'from': 'signup_redirect',
+        'to': 'signup_page'
+    })
     return redirect(url_for('signup_page'))
   
 @app.route('/reset-password')
 def reset_password_page():
+    # Log page visit
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'page_visit', request, {
+        'page': 'reset_password',
+        'timestamp': datetime.utcnow().isoformat()
+    })
     return render_template('reset_password.html')
 
 # --- API Authentication Routes ---
@@ -498,6 +725,11 @@ def api_signup():
         return jsonify({'success': False, 'error': 'An account with this email already exists.'}), 409
 
     otp_code = str(random.randint(100000, 999999))
+    
+    # Get IP and device info for signup
+    ip = get_client_ip(request)
+    device_info = get_device_info(request)
+    location = get_location_from_ip(ip)
 
     new_user = {
         "name": name, 
@@ -511,11 +743,36 @@ def api_signup():
         "usage_counts": { "messages": 0, "webSearches": 0, "feedback": 0 },
         "last_usage_reset": datetime.utcnow().strftime('%Y-%m-%d'),
         "last_web_reset": datetime.utcnow().strftime('%Y-%m-%d'),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        # NEW FIELDS
+        "signup_ip": ip,
+        "signup_device": device_info,
+        "signup_location": location,
+        "last_login": None,
+        "last_login_ip": None,
+        "last_login_device": None,
+        "last_login_location": None,
+        "login_history": [],
+        "total_logins": 0,
+        "device_info": device_info,
+        "ip_address": ip,
+        "location": location
     }
     
     try:
-        users_collection.insert_one(new_user)
+        result = users_collection.insert_one(new_user)
+        user_id = result.inserted_id
+        
+        # Log signup activity
+        log_user_activity(user_id, 'signup', request, {
+            'email': email,
+            'name': name,
+            'ip': ip,
+            'device': device_info.get('device', 'Unknown'),
+            'browser': device_info.get('browser', 'Unknown'),
+            'os': device_info.get('os', 'Unknown')
+        })
+        
     except Exception as e:
         print(f"MongoDB insert error: {e}")
         return jsonify({'success': False, 'error': 'Database error. Please try again.'}), 500
@@ -563,6 +820,12 @@ def api_verify_otp():
         {"$set": {"is_verified": True}, "$unset": {"verification_token": 1}}
     )
 
+    # Log verification activity
+    log_user_activity(user["_id"], 'email_verification', request, {
+        'email': email,
+        'verification_type': 'email_otp'
+    })
+
     return jsonify({'success': True, 'message': 'Account verified successfully!'})
 
 @app.route('/api/resend_otp', methods=['POST'])
@@ -595,6 +858,11 @@ def api_resend_otp():
         {"_id": user["_id"]},
         {"$set": {"verification_token": new_otp}}
     )
+    
+    # Log OTP resend activity
+    log_user_activity(user["_id"], 'otp_resend', request, {
+        'email': email
+    })
     
     # Prepare email content
     html_content = f"""
@@ -648,17 +916,85 @@ def api_login():
 
     if user_data and user_data.get('password') == password:
         if not user_data.get('is_verified', False):
-             return jsonify({'success': False, 'error': 'Please verify your email address first.'}), 403
+            # Log failed verification attempt
+            log_user_activity(user_data['_id'], 'failed_login', request, {
+                'email': email,
+                'reason': 'email_not_verified'
+            })
+            return jsonify({'success': False, 'error': 'Please verify your email address first.'}), 403
 
+        # Get IP and device info for login
+        ip = get_client_ip(request)
+        device_info = get_device_info(request)
+        location = get_location_from_ip(ip)
+        
         new_session_id = str(uuid.uuid4())
-        users_collection.update_one({'_id': user_data['_id']}, {'$set': {'session_id': new_session_id}})
+        login_time = datetime.utcnow()
+        
+        # Update user with login info
+        update_data = {
+            'session_id': new_session_id,
+            'last_login': login_time,
+            'last_login_ip': ip,
+            'last_login_device': device_info,
+            'last_login_location': location,
+            'ip_address': ip,
+            'device_info': device_info,
+            'location': location,
+            '$inc': {'total_logins': 1},
+            '$push': {
+                'login_history': {
+                    'timestamp': login_time,
+                    'ip': ip,
+                    'device': device_info,
+                    'location': location,
+                    'session_id': new_session_id
+                }
+            }
+        }
+        
+        # Keep only last 10 logins
+        if len(user_data.get('login_history', [])) >= 10:
+            update_data['$pop'] = {'login_history': -1}
+        
+        users_collection.update_one(
+            {'_id': user_data['_id']},
+            {'$set': update_data}
+        )
+        
+        # Refresh user data
+        user_data = users_collection.find_one({'_id': user_data['_id']})
         user_data['session_id'] = new_session_id
 
         user_obj = User(user_data)
         login_user(user_obj)
         session['session_id'] = new_session_id
+        
+        # Log login activity
+        log_user_activity(user_data['_id'], 'login', request, {
+            'email': email,
+            'session_id': new_session_id,
+            'device': device_info.get('device', 'Unknown'),
+            'browser': device_info.get('browser', 'Unknown'),
+            'os': device_info.get('os', 'Unknown'),
+            'location': f"{location.get('city', 'Unknown')}, {location.get('country', 'Unknown')}"
+        })
+        
         return jsonify({'success': True, 'user': {'name': user_data['name'], 'email': user_data['email']}})
     else:
+        # Log failed login attempt
+        if user_data:
+            log_user_activity(user_data['_id'], 'failed_login', request, {
+                'email': email,
+                'reason': 'incorrect_password'
+            })
+        else:
+            # Log anonymous failed login (user doesn't exist)
+            ip = get_client_ip(request)
+            log_anonymous_activity(ip, 'failed_login_attempt', request, {
+                'email': email,
+                'reason': 'user_not_found'
+            })
         return jsonify({'success': False, 'error': 'Incorrect email or password.'}), 401
 
 @app.route('/api/request_password_reset', methods=['POST'])
@@ -670,6 +1006,12 @@ def request_password_reset():
 
     user = users_collection.find_one({"email": email})
     if not user:
+        # Log anonymous password reset attempt
+        ip = get_client_ip(request)
+        log_anonymous_activity(ip, 'password_reset_attempt', request, {
+            'email': email,
+            'status': 'user_not_found'
+        })
         return jsonify({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
     reset_token = uuid.uuid4().hex
@@ -681,6 +1023,12 @@ def request_password_reset():
     )
     
     reset_url = url_for('home', _external=True) + f'reset-password?token={reset_token}'
+    
+    # Log password reset request
+    log_user_activity(user['_id'], 'password_reset_request', request, {
+        'email': email,
+        'reset_token_generated': True
+    })
     
     html_content = f"""
     <h3>Password Reset Request</h3>
@@ -718,6 +1066,12 @@ def reset_password():
         }
     )
     
+    # Log password reset success
+    log_user_activity(user['_id'], 'password_reset_success', request, {
+        'email': user.get('email'),
+        'reset_completed': True
+    })
+    
     return jsonify({'success': True, 'message': 'Password has been reset successfully.'})
 
 @app.route('/get_user_info')
@@ -725,6 +1079,11 @@ def reset_password():
 def get_user_info():
     user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
     usage_counts = user_data.get('usage_counts', {"messages": 0, "webSearches": 0, "feedback": 0})
+    
+    # Log user info access
+    log_user_activity(current_user.id, 'get_user_info', request, {
+        'endpoint': 'get_user_info'
+    })
     
     return jsonify({
         "name": current_user.name,
@@ -737,6 +1096,12 @@ def get_user_info():
 @app.route('/logout', methods=['POST'])
 @login_required
 def logout():
+    # Log logout activity
+    log_user_activity(current_user.id, 'logout', request, {
+        'session_id': session.get('session_id'),
+        'logout_type': 'single_device'
+    })
+    
     logout_user()
     return jsonify({'success': True})
 
@@ -749,6 +1114,13 @@ def logout_all_devices():
     try:
         new_session_id = str(uuid.uuid4())
         users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$set': {'session_id': new_session_id}})
+        
+        # Log logout all devices activity
+        log_user_activity(current_user.id, 'logout_all_devices', request, {
+            'old_session_id': current_user.session_id,
+            'new_session_id': new_session_id
+        })
+        
         logout_user()
         return jsonify({'success': True, 'message': 'Successfully logged out of all devices.'})
     except Exception as e:
@@ -763,6 +1135,8 @@ def delete_account():
 
     try:
         user_id = ObjectId(current_user.id)
+        user_email = current_user.email
+        
         update_result = users_collection.update_one(
             {'_id': user_id},
             {
@@ -780,6 +1154,12 @@ def delete_account():
         )
 
         if update_result.matched_count > 0:
+            # Log account deletion
+            log_user_activity(current_user.id, 'account_deletion', request, {
+                'original_email': user_email,
+                'deletion_time': datetime.utcnow().isoformat()
+            })
+            
             try:
                 logout_user()
             except Exception as e:
@@ -793,6 +1173,9 @@ def delete_account():
 
 @app.route('/status', methods=['GET'])
 def status():
+    # Log status check
+    ip = get_client_ip(request)
+    log_anonymous_activity(ip, 'status_check', request, {})
     return jsonify({'status': 'ok'}), 200
 
 # --- Chat History CRUD API ---
@@ -812,6 +1195,12 @@ def get_chats():
                 "title": chat.get("title", "Untitled Chat"),
                 "messages": chat.get("messages", [])
             })
+        
+        # Log chat history access
+        log_user_activity(current_user.id, 'get_chat_history', request, {
+            'chat_count': len(chats_list)
+        })
+        
         return jsonify(chats_list)
     except Exception as e:
         print(f"Error fetching chats: {e}")
@@ -849,6 +1238,14 @@ def save_chat():
                     }
                 }
             )
+            
+            # Log chat update
+            log_user_activity(current_user.id, 'update_chat', request, {
+                'chat_id': chat_id,
+                'title': title,
+                'message_count': len(messages)
+            })
+            
             return jsonify({"id": chat_id})
         else:
             chat_document = {
@@ -859,6 +1256,14 @@ def save_chat():
             }
             result = conversations_collection.insert_one(chat_document)
             new_id = str(result.inserted_id)
+            
+            # Log new chat creation
+            log_user_activity(current_user.id, 'create_chat', request, {
+                'chat_id': new_id,
+                'title': title,
+                'message_count': len(messages)
+            })
+            
             return jsonify({"id": new_id, "title": title})
     except Exception as e:
         print(f"Error saving chat: {e}")
@@ -882,6 +1287,13 @@ def rename_chat(chat_id):
         )
         if result.matched_count == 0:
             return jsonify({"error": "Chat not found or permission denied"}), 404
+        
+        # Log chat rename
+        log_user_activity(current_user.id, 'rename_chat', request, {
+            'chat_id': chat_id,
+            'new_title': new_title
+        })
+        
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error renaming chat: {e}")
@@ -899,6 +1311,12 @@ def delete_chat_by_id(chat_id):
         )
         if result.deleted_count == 0:
             return jsonify({"error": "Chat not found or permission denied"}), 404
+        
+        # Log chat deletion
+        log_user_activity(current_user.id, 'delete_chat', request, {
+            'chat_id': chat_id
+        })
+        
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error deleting chat: {e}")
@@ -962,6 +1380,15 @@ def upload_library_item():
                 {"$set": {"ai_summary": "Not applicable.", "ai_summary_status": "completed"}}
             )
 
+        # Log file upload
+        log_user_activity(current_user.id, 'file_upload', request, {
+            'filename': filename,
+            'file_type': file_type,
+            'file_size': file_size,
+            'library_item_id': str(new_id),
+            'has_text': extracted_text != "Image file." and len(extracted_text) > 0
+        })
+
         return jsonify({
             "success": True, 
             "id": str(new_id),
@@ -993,6 +1420,12 @@ def get_library_items():
                 "aiSummaryStatus": item.get("ai_summary_status", "unknown"),
                 "timestamp": item["timestamp"].isoformat()
             })
+        
+        # Log library access
+        log_user_activity(current_user.id, 'get_library_files', request, {
+            'file_count': len(items_list)
+        })
+        
         return jsonify(items_list)
     except Exception as e:
         print(f"Error fetching library items: {e}")
@@ -1009,6 +1442,12 @@ def delete_library_item(item_id):
         )
         if result.deleted_count == 0:
             return jsonify({"error": "Item not found or permission denied"}), 404
+        
+        # Log file deletion
+        log_user_activity(current_user.id, 'delete_library_file', request, {
+            'library_item_id': item_id
+        })
+        
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error deleting library item: {e}")
@@ -1090,6 +1529,13 @@ def save_feedback():
                 {'$inc': {'usage_counts.feedback': 1}}
             )
         
+        # Log feedback activity
+        log_user_activity(current_user.id, 'feedback', request, {
+            'feedback_type': feedback_type,
+            'chat_id': chat_id,
+            'message_index': message_index
+        })
+        
         return jsonify({'success': True})
         
     except Exception as e:
@@ -1128,6 +1574,12 @@ def get_chat_feedback(chat_id):
                 "feedback_type": item["feedback_type"],
                 "timestamp": item["timestamp"].isoformat()
             })
+        
+        # Log feedback access
+        log_user_activity(current_user.id, 'get_feedback', request, {
+            'chat_id': chat_id,
+            'feedback_count': len(feedback_list)
+        })
         
         return jsonify({
             'success': True,
@@ -1187,6 +1639,11 @@ def get_user_feedback_stats():
                 "chat_title": chat_title,
                 "message_index": item["message_index"]
             })
+        
+        # Log feedback stats access
+        log_user_activity(current_user.id, 'get_feedback_stats', request, {
+            'total_feedback': total_feedback
+        })
         
         return jsonify({
             'success': True,
@@ -1267,6 +1724,11 @@ def get_feedback_analytics():
                     "feedback_count": user_stat["count"]
                 })
         
+        # Log admin analytics access
+        log_user_activity(current_user.id, 'admin_feedback_analytics', request, {
+            'total_feedback': feedback_collection.count_documents({})
+        })
+        
         return jsonify({
             'success': True,
             'overall_stats': overall_stats,
@@ -1278,6 +1740,281 @@ def get_feedback_analytics():
     except Exception as e:
         print(f"Error fetching feedback analytics: {e}")
         return jsonify({'success': False, 'error': 'Failed to fetch analytics'}), 500
+
+# --- User Activity Tracking API Routes ---
+
+@app.route('/api/admin/user_activity', methods=['GET'])
+@login_required
+def get_user_activity():
+    """Get user activity data (admin only)"""
+    if not current_user.isAdmin:
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if user_activity_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        # Get query parameters
+        user_id = request.args.get('user_id')
+        activity_type = request.args.get('activity_type')
+        limit = int(request.args.get('limit', 100))
+        skip = int(request.args.get('skip', 0))
+        days = int(request.args.get('days', 7))
+        
+        # Calculate date range
+        days_ago = datetime.utcnow() - timedelta(days=days)
+        
+        query = {'timestamp': {'$gte': days_ago}}
+        if user_id:
+            query['user_id'] = ObjectId(user_id)
+        if activity_type:
+            query['activity_type'] = activity_type
+        
+        # Get activity data
+        activities = user_activity_collection.find(query).sort('timestamp', -1).skip(skip).limit(limit)
+        
+        result = []
+        for activity in activities:
+            # Get user info
+            user = None
+            if activity.get('user_id'):
+                user = users_collection.find_one({'_id': activity['user_id']})
+            
+            result.append({
+                'id': str(activity['_id']),
+                'user_id': str(activity['user_id']) if activity.get('user_id') else None,
+                'user_email': user.get('email', 'Anonymous') if user else 'Anonymous',
+                'user_name': user.get('name', 'Anonymous') if user else 'Anonymous',
+                'activity_type': activity['activity_type'],
+                'timestamp': activity['timestamp'].isoformat(),
+                'ip_address': activity.get('ip_address', ''),
+                'device_info': activity.get('device_info', {}),
+                'location': activity.get('location', {}),
+                'metadata': activity.get('metadata', {}),
+                'endpoint': activity.get('endpoint', ''),
+                'method': activity.get('method', ''),
+                'user_agent': activity.get('user_agent', '')[:100]
+            })
+        
+        # Get statistics
+        total_count = user_activity_collection.count_documents(query)
+        
+        # Log admin activity access
+        log_user_activity(current_user.id, 'admin_user_activity', request, {
+            'query': query,
+            'total_count': total_count
+        })
+        
+        return jsonify({
+            'success': True,
+            'activities': result,
+            'total_count': total_count,
+            'limit': limit,
+            'skip': skip,
+            'days': days
+        })
+        
+    except Exception as e:
+        print(f"Error fetching user activity: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch user activity'}), 500
+
+@app.route('/api/admin/user_analytics', methods=['GET'])
+@login_required
+def get_user_analytics():
+    """Get user analytics (admin only)"""
+    if not current_user.isAdmin:
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if user_activity_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        # Get activity counts by type for last 30 days
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        
+        pipeline = [
+            {"$match": {"timestamp": {"$gte": thirty_days_ago}}},
+            {
+                "$group": {
+                    "_id": "$activity_type",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}}
+        ]
+        
+        activity_counts = list(user_activity_collection.aggregate(pipeline))
+        
+        # Get unique users count
+        unique_users = user_activity_collection.distinct('user_id')
+        
+        # Get daily activity for last 7 days
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        
+        daily_pipeline = [
+            {"$match": {"timestamp": {"$gte": seven_days_ago}}},
+            {
+                "$group": {
+                    "_id": {
+                        "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}}
+                    },
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id.date": 1}}
+        ]
+        
+        daily_activity = list(user_activity_collection.aggregate(daily_pipeline))
+        
+        # Get top countries
+        country_pipeline = [
+            {"$match": {"location.country": {"$ne": "Unknown", "$ne": "Local"}}},
+            {
+                "$group": {
+                    "_id": "$location.country",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": 10}
+        ]
+        
+        top_countries = list(user_activity_collection.aggregate(country_pipeline))
+        
+        # Get device statistics
+        device_pipeline = [
+            {"$match": {"device_info.device": {"$exists": True}}},
+            {
+                "$group": {
+                    "_id": "$device_info.device",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        
+        device_stats = list(user_activity_collection.aggregate(device_pipeline))
+        
+        # Get browser statistics
+        browser_pipeline = [
+            {"$match": {"device_info.browser": {"$exists": True, "$ne": "Unknown"}}},
+            {
+                "$group": {
+                    "_id": "$device_info.browser",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        
+        browser_stats = list(user_activity_collection.aggregate(browser_pipeline))
+        
+        # Get OS statistics
+        os_pipeline = [
+            {"$match": {"device_info.os": {"$exists": True, "$ne": "Unknown"}}},
+            {
+                "$group": {
+                    "_id": "$device_info.os",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        
+        os_stats = list(user_activity_collection.aggregate(os_pipeline))
+        
+        # Get user signup statistics
+        user_signups = users_collection.count_documents({
+            'timestamp': {'$gte': thirty_days_ago.isoformat()}
+        })
+        
+        # Log admin analytics access
+        log_user_activity(current_user.id, 'admin_user_analytics', request, {
+            'analytics_type': 'user_analytics'
+        })
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_activities': user_activity_collection.count_documents({"timestamp": {"$gte": thirty_days_ago}}),
+                'unique_users': len([uid for uid in unique_users if uid]),  # Filter out None
+                'user_signups': user_signups,
+                'activity_counts': activity_counts,
+                'daily_activity': daily_activity,
+                'top_countries': top_countries,
+                'device_stats': device_stats,
+                'browser_stats': browser_stats,
+                'os_stats': os_stats
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error fetching user analytics: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch analytics'}), 500
+
+@app.route('/api/user/my_activity', methods=['GET'])
+@login_required
+def get_my_activity():
+    """Get current user's own activity"""
+    if user_activity_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        user_id = ObjectId(current_user.id)
+        limit = int(request.args.get('limit', 50))
+        skip = int(request.args.get('skip', 0))
+        
+        # Get user's activity
+        activities = user_activity_collection.find(
+            {"user_id": user_id}
+        ).sort('timestamp', -1).skip(skip).limit(limit)
+        
+        result = []
+        for activity in activities:
+            result.append({
+                'id': str(activity['_id']),
+                'activity_type': activity['activity_type'],
+                'timestamp': activity['timestamp'].isoformat(),
+                'ip_address': activity.get('ip_address', ''),
+                'location': activity.get('location', {}),
+                'metadata': activity.get('metadata', {}),
+                'endpoint': activity.get('endpoint', '')
+            })
+        
+        # Get total count
+        total_count = user_activity_collection.count_documents({"user_id": user_id})
+        
+        # Get recent activity types
+        recent_types_pipeline = [
+            {"$match": {"user_id": user_id}},
+            {"$group": {"_id": "$activity_type", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 10}
+        ]
+        
+        recent_types = list(user_activity_collection.aggregate(recent_types_pipeline))
+        
+        # Log self activity access
+        log_user_activity(current_user.id, 'get_my_activity', request, {
+            'limit': limit,
+            'skip': skip
+        })
+        
+        return jsonify({
+            'success': True,
+            'activities': result,
+            'total_count': total_count,
+            'recent_activity_types': recent_types,
+            'limit': limit,
+            'skip': skip
+        })
+        
+    except Exception as e:
+        print(f"Error fetching user activity: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch your activity'}), 500
 
 # --- Usage Tracking API ---
 
@@ -1299,16 +2036,28 @@ def update_usage():
                 {'_id': user_id},
                 {'$inc': {'usage_counts.messages': 1}}
             )
+            # Log message usage
+            log_user_activity(current_user.id, 'message_usage', request, {
+                'usage_type': 'message'
+            })
         elif usage_type == 'web_search':
             users_collection.update_one(
                 {'_id': user_id},
                 {'$inc': {'usage_counts.webSearches': 1}}
             )
+            # Log web search usage
+            log_user_activity(current_user.id, 'web_search_usage', request, {
+                'usage_type': 'web_search'
+            })
         elif usage_type == 'feedback':
             users_collection.update_one(
                 {'_id': user_id},
                 {'$inc': {'usage_counts.feedback': 1}}
             )
+            # Log feedback usage
+            log_user_activity(current_user.id, 'feedback_usage', request, {
+                'usage_type': 'feedback'
+            })
         
         return jsonify({'success': True})
         
@@ -1321,6 +2070,13 @@ def update_usage():
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
+    # Track chat usage
+    log_user_activity(current_user.id, 'chat_message', request, {
+        'has_files': len(request.json.get('filesData', [])) > 0,
+        'mode': request.json.get('mode'),
+        'is_temporary': request.json.get('isTemporary', False)
+    })
+    
     # Free plan usage check and reset logic
     if not current_user.isPremium and not current_user.isAdmin:
         user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -1357,6 +2113,12 @@ def chat():
         
         # Check message limit (500 per month for free plan)
         if messages_used >= 500:
+            # Log usage limit reached
+            log_user_activity(current_user.id, 'usage_limit_reached', request, {
+                'limit_type': 'messages',
+                'current_usage': messages_used,
+                'limit': 500
+            })
             return jsonify({
                 'error': 'You have reached your monthly message limit. Please upgrade for unlimited access.',
                 'upgrade_required': True
@@ -1513,10 +2275,27 @@ def chat():
                 
                 if searches_used >= 1:
                     web_search_context = "Daily web search limit reached (1 per day)."
+                    # Log web search limit reached
+                    log_user_activity(current_user.id, 'web_search_limit_reached', request, {
+                        'query': combined_text[:100],
+                        'current_usage': searches_used,
+                        'limit': 1
+                    })
                 else:
+                    # Log web search
+                    log_user_activity(current_user.id, 'web_search', request, {
+                        'query': combined_text[:100],
+                        'search_type': request_mode
+                    })
                     web_search_context = search_web(combined_text)
                     users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$inc': {'usage_counts.webSearches': 1}})
             else:
+                # Log web search for premium/admin users
+                log_user_activity(current_user.id, 'web_search', request, {
+                    'query': combined_text[:100],
+                    'search_type': request_mode,
+                    'user_type': 'premium' if current_user.isPremium else 'admin'
+                })
                 web_search_context = search_web(combined_text)
         
         gemini_history = []
@@ -1861,6 +2640,11 @@ def chat():
         
     except Exception as e:
         print(f"Chat endpoint error: {e}")
+        # Log chat error
+        log_user_activity(current_user.id, 'chat_error', request, {
+            'error': str(e)[:200],
+            'has_files': len(request.json.get('filesData', [])) > 0 if request.is_json else False
+        })
         return jsonify({'response': f"Sorry, an internal error occurred: {str(e)}"})
 
 @app.route('/save_chat_history', methods=['POST'])
@@ -1883,6 +2667,13 @@ def save_chat_history():
         response = make_response(html_content)
         response.headers["Content-Disposition"] = "attachment; filename=chat_history.html"
         response.headers["Content-Type"] = "text/html"
+        
+        # Log chat history export
+        log_user_activity(current_user.id, 'export_chat_history', request, {
+            'format': 'html',
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
         return response
     except Exception as e:
         return jsonify({'success': False, 'error': 'Failed to generate chat history.'}), 500
