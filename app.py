@@ -69,6 +69,7 @@ temporary_chat_collection = None
 conversations_collection = None
 users_collection = None
 library_collection = None
+feedback_collection = None  # NEW: Feedback collection
 
 if MONGO_URI:
     try:
@@ -82,6 +83,7 @@ if MONGO_URI:
         conversations_collection = db.get_collection("conversations")
         users_collection = db.get_collection("users")
         library_collection = db.get_collection("library_items")
+        feedback_collection = db.get_collection("user_feedback")  # NEW: Initialize feedback collection
         print("✅ Successfully connected to MongoDB.")
     except Exception as e:
         print(f"CRITICAL ERROR: Could not connect to MongoDB. Error: {e}")
@@ -793,6 +795,186 @@ def delete_account():
 def status():
     return jsonify({'status': 'ok'}), 200
 
+# --- NEW: Feedback API Routes ---
+
+@app.route('/api/feedback', methods=['POST'])
+@login_required
+def save_feedback():
+    """Save user feedback (like/dislike) for AI responses"""
+    if feedback_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+    
+    data = request.get_json()
+    
+    # Required fields
+    chat_id = data.get('chat_id')
+    message_index = data.get('message_index')  # Index of AI message in chat
+    feedback_type = data.get('feedback_type')  # 'like' or 'dislike' or 'neutral'
+    
+    if not all([chat_id, message_index, feedback_type]):
+        return jsonify({'success': False, 'error': 'Missing required fields.'}), 400
+    
+    if feedback_type not in ['like', 'dislike', 'neutral']:
+        return jsonify({'success': False, 'error': 'Invalid feedback type.'}), 400
+    
+    user_id = ObjectId(current_user.id)
+    
+    try:
+        # Check if feedback already exists for this message
+        existing_feedback = feedback_collection.find_one({
+            "user_id": user_id,
+            "chat_id": chat_id,
+            "message_index": message_index
+        })
+        
+        if feedback_type == 'neutral':
+            # Remove feedback if it exists
+            if existing_feedback:
+                feedback_collection.delete_one({"_id": existing_feedback["_id"]})
+            return jsonify({'success': True, 'action': 'removed'})
+        
+        if existing_feedback:
+            # Update existing feedback
+            feedback_collection.update_one(
+                {"_id": existing_feedback["_id"]},
+                {"$set": {
+                    "feedback_type": feedback_type,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            action = 'updated'
+        else:
+            # Create new feedback
+            feedback_document = {
+                "user_id": user_id,
+                "chat_id": chat_id,
+                "message_index": message_index,
+                "feedback_type": feedback_type,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            feedback_collection.insert_one(feedback_document)
+            action = 'created'
+        
+        return jsonify({'success': True, 'action': action})
+        
+    except Exception as e:
+        print(f"Error saving feedback: {e}")
+        return jsonify({'success': False, 'error': 'Could not save feedback.'}), 500
+
+@app.route('/api/feedback/chat/<chat_id>', methods=['GET'])
+@login_required
+def get_chat_feedback(chat_id):
+    """Get all feedback for a specific chat"""
+    if feedback_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+    
+    user_id = ObjectId(current_user.id)
+    
+    try:
+        # Get all feedback for this user and chat
+        feedback_items = list(feedback_collection.find({
+            "user_id": user_id,
+            "chat_id": chat_id
+        }).sort("message_index", 1))
+        
+        # Convert ObjectId to string for JSON serialization
+        feedback_list = []
+        for item in feedback_items:
+            feedback_list.append({
+                "message_index": item["message_index"],
+                "feedback_type": item["feedback_type"],
+                "created_at": item["created_at"].isoformat() if isinstance(item["created_at"], datetime) else item["created_at"],
+                "updated_at": item["updated_at"].isoformat() if isinstance(item["updated_at"], datetime) else item["updated_at"]
+            })
+        
+        return jsonify({
+            'success': True,
+            'chat_id': chat_id,
+            'feedback': feedback_list,
+            'count': len(feedback_list)
+        })
+        
+    except Exception as e:
+        print(f"Error fetching chat feedback: {e}")
+        return jsonify({'success': False, 'error': 'Could not fetch feedback.'}), 500
+
+@app.route('/api/feedback/stats', methods=['GET'])
+@login_required
+def get_feedback_stats():
+    """Get statistics on user feedback"""
+    if feedback_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+    
+    user_id = ObjectId(current_user.id)
+    
+    try:
+        # Count likes and dislikes
+        likes = feedback_collection.count_documents({
+            "user_id": user_id,
+            "feedback_type": "like"
+        })
+        
+        dislikes = feedback_collection.count_documents({
+            "user_id": user_id,
+            "feedback_type": "dislike"
+        })
+        
+        # Get recent feedback (last 10)
+        recent_feedback_cursor = feedback_collection.find(
+            {"user_id": user_id}
+        ).sort("updated_at", -1).limit(10)
+        
+        recent_feedback = []
+        for item in recent_feedback_cursor:
+            recent_feedback.append({
+                "chat_id": item["chat_id"],
+                "message_index": item["message_index"],
+                "feedback_type": item["feedback_type"],
+                "updated_at": item["updated_at"].isoformat() if isinstance(item["updated_at"], datetime) else item["updated_at"]
+            })
+        
+        # Calculate percentages
+        total = likes + dislikes
+        like_percentage = (likes / total * 100) if total > 0 else 0
+        dislike_percentage = (dislikes / total * 100) if total > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'likes': likes,
+                'dislikes': dislikes,
+                'total': total,
+                'like_percentage': round(like_percentage, 1),
+                'dislike_percentage': round(dislike_percentage, 1)
+            },
+            'recent_feedback': recent_feedback
+        })
+        
+    except Exception as e:
+        print(f"Error getting feedback stats: {e}")
+        return jsonify({'success': False, 'error': 'Could not get feedback statistics.'}), 500
+
+@app.route('/api/feedback/delete', methods=['POST'])
+@login_required
+def delete_user_feedback():
+    """Delete all feedback for the current user"""
+    if feedback_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+    
+    user_id = ObjectId(current_user.id)
+    
+    try:
+        result = feedback_collection.delete_many({"user_id": user_id})
+        return jsonify({
+            'success': True,
+            'deleted_count': result.deleted_count,
+            'message': f'Deleted {result.deleted_count} feedback entries'
+        })
+    except Exception as e:
+        print(f"Error deleting user feedback: {e}")
+        return jsonify({'success': False, 'error': 'Could not delete feedback.'}), 500
+
 # --- Chat History CRUD API ---
 
 @app.route('/api/chats', methods=['GET'])
@@ -805,10 +987,20 @@ def get_chats():
         chats_cursor = conversations_collection.find({"user_id": user_id}).sort("timestamp", -1)
         chats_list = []
         for chat in chats_cursor:
+            # Get feedback for this chat if available
+            feedback_count = 0
+            if feedback_collection:
+                feedback_count = feedback_collection.count_documents({
+                    "user_id": user_id,
+                    "chat_id": str(chat["_id"])
+                })
+            
             chats_list.append({
                 "id": str(chat["_id"]),
                 "title": chat.get("title", "Untitled Chat"),
-                "messages": chat.get("messages", [])
+                "messages": chat.get("messages", []),
+                "feedback_count": feedback_count,
+                "timestamp": chat.get("timestamp").isoformat() if isinstance(chat.get("timestamp"), datetime) else chat.get("timestamp")
             })
         return jsonify(chats_list)
     except Exception as e:
@@ -892,11 +1084,22 @@ def delete_chat_by_id(chat_id):
         return jsonify({"error": "Database not configured"}), 500
     
     try:
+        # Delete the chat
         result = conversations_collection.delete_one(
             {"_id": ObjectId(chat_id), "user_id": ObjectId(current_user.id)}
         )
+        
         if result.deleted_count == 0:
             return jsonify({"error": "Chat not found or permission denied"}), 404
+        
+        # Also delete associated feedback if feedback collection exists
+        if feedback_collection:
+            feedback_deleted = feedback_collection.delete_many({
+                "user_id": ObjectId(current_user.id),
+                "chat_id": chat_id
+            })
+            print(f"Deleted {feedback_deleted.deleted_count} feedback entries for chat {chat_id}")
+        
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error deleting chat: {e}")
@@ -1011,6 +1214,40 @@ def delete_library_item(item_id):
     except Exception as e:
         print(f"Error deleting library item: {e}")
         return jsonify({"error": "Could not delete library item"}), 500
+
+# --- Usage Tracking ---
+
+@app.route('/update_usage', methods=['POST'])
+@login_required
+def update_usage():
+    """Update user usage counts"""
+    if users_collection is None:
+        return jsonify({'success': False, 'error': 'Database not configured.'}), 500
+    
+    data = request.get_json()
+    usage_type = data.get('type')  # 'message' or 'web_search'
+    
+    if not usage_type:
+        return jsonify({'success': False, 'error': 'Usage type required.'}), 400
+    
+    try:
+        user_id = ObjectId(current_user.id)
+        
+        if usage_type == 'message':
+            users_collection.update_one(
+                {'_id': user_id},
+                {'$inc': {'usage_counts.messages': 1}}
+            )
+        elif usage_type == 'web_search':
+            users_collection.update_one(
+                {'_id': user_id},
+                {'$inc': {'usage_counts.webSearches': 1}}
+            )
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Error updating usage: {e}")
+        return jsonify({'success': False, 'error': 'Could not update usage.'}), 500
 
 # --- Chat Logic with Security Focus ---
 
