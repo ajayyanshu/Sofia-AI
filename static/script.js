@@ -83,6 +83,9 @@ let chatHistory = [];
 let currentChat = [];
 let currentChatId = null;
 
+// NEW: Track message indices for feedback
+let currentMessageIndex = 0;
+
 // Plan & Usage State
 let usageCounts = {
     messages: 0,
@@ -93,6 +96,9 @@ const usageLimits = {
     webSearches: 1
 };
 let isAdmin = false;
+
+// NEW: Track feedback data
+let feedbackData = new Map(); // Map<messageIndex, {type: 'like'|'dislike', timestamp: Date}>
 
 // --- Sidebar & Temp Chat Logic ---
 function openSidebar() {
@@ -663,6 +669,69 @@ function clearAllFiles() {
     clearAllFilesBtn.classList.add('hidden');
 }
 
+// NEW: Send feedback to backend
+async function sendFeedback(feedbackType, messageIndex) {
+    // Don't send feedback for temporary chats
+    if (!currentChatId || isTemporaryChatActive) {
+        console.log('Cannot send feedback for temporary chats');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: currentChatId,
+                message_index: messageIndex,
+                feedback_type: feedbackType
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`Feedback ${feedbackType} saved for message ${messageIndex}`);
+            
+            // Store feedback locally
+            feedbackData.set(messageIndex, {
+                type: feedbackType,
+                timestamp: new Date()
+            });
+        } else {
+            console.error('Failed to save feedback:', result.error);
+        }
+    } catch (error) {
+        console.error('Error sending feedback:', error);
+    }
+}
+
+// NEW: Load feedback for a chat
+async function loadChatFeedback(chatId) {
+    if (!chatId) return;
+    
+    try {
+        const response = await fetch(`/api/feedback/chat/${chatId}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                // Clear existing feedback data
+                feedbackData.clear();
+                
+                // Populate feedback data
+                data.feedback.forEach(item => {
+                    feedbackData.set(item.message_index, {
+                        type: item.feedback_type,
+                        timestamp: new Date(item.timestamp)
+                    });
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading feedback:', error);
+    }
+}
+
 // UPDATED: Send message with multiple files
 async function sendMessage() {
     const text = messageInput.value.trim();
@@ -754,10 +823,16 @@ async function sendMessage() {
         
         const aiMessage = {
             text: aiResponseText,
-            sender: 'ai'
+            sender: 'ai',
+            messageIndex: currentMessageIndex // Track message index for feedback
         };
-        addMessage(aiMessage);
+        
+        const aiMessageElement = addMessage(aiMessage, currentMessageIndex);
         currentChat.push(aiMessage);
+        
+        // Increment message index for next message
+        currentMessageIndex++;
+        
         saveChatSession();
 
         if (modeForThisMessage === 'voice_mode' && isVoiceConversationActive) {
@@ -782,9 +857,9 @@ async function sendMessage() {
     }
 }
 
-// UPDATED: Add message with multiple files display
-function addMessage({text, sender, fileInfo = null, mode = null}) {
-     if (sender === 'user') {
+// UPDATED: Add message with multiple files display and feedback tracking
+function addMessage({text, sender, fileInfo = null, mode = null}, messageIndex = null) {
+    if (sender === 'user') {
         const messageBubble = document.createElement('div');
         let fileHtml = '';
         
@@ -817,6 +892,8 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         messageBubble.className = 'message-bubble user-message ml-auto';
         chatContainer.appendChild(messageBubble);
 
+        return messageBubble;
+
     } else if (sender === 'ai') {
         const aiMessageContainer = document.createElement('div');
         aiMessageContainer.className = 'ai-message-container';
@@ -826,15 +903,20 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         
         let contentHtml = markdownConverter.makeHtml(text);
         
+        // Check if feedback exists for this message
+        const existingFeedback = feedbackData.get(messageIndex);
+        const isLiked = existingFeedback?.type === 'like';
+        const isDisliked = existingFeedback?.type === 'dislike';
+        
         const actionsHtml = `
             <div class="message-actions">
                 <button class="action-btn copy-btn" title="Copy text">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM5 11a1 1 0 100 2h4a1 1 0 100-2H5z"/></svg>
                 </button>
-                <button class="action-btn like-btn" title="Good response">
+                <button class="action-btn like-btn ${isLiked ? 'text-blue-600' : ''}" title="Good response" data-message-index="${messageIndex}">
                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.821 2.311l-1.055 1.636a1 1 0 00-1.423 .23z"/></svg>
                 </button>
-                <button class="action-btn dislike-btn" title="Bad response">
+                <button class="action-btn dislike-btn ${isDisliked ? 'text-red-600' : ''}" title="Bad response" data-message-index="${messageIndex}">
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0011.057 2H5.642a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.821-2.311l1.055-1.636a1 1 0 001.423 .23z"/></svg>
                 </button>
                 <button class="action-btn speak-btn" title="Speak">
@@ -849,6 +931,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
         aiMessageContainer.appendChild(messageBubble);
         chatContainer.appendChild(aiMessageContainer);
 
+        // Add copy code functionality
         const codeBlocks = messageBubble.querySelectorAll('pre');
         codeBlocks.forEach((pre) => {
             const copyButton = document.createElement('button');
@@ -873,6 +956,7 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             Prism.highlightAll();
         }
 
+        // Copy button functionality
         messageBubble.querySelector('.copy-btn').addEventListener('click', (e) => {
             const button = e.currentTarget;
             const originalContent = button.innerHTML;
@@ -884,16 +968,57 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             });
         });
 
-        messageBubble.querySelector('.like-btn').addEventListener('click', (e) => {
-            e.currentTarget.classList.toggle('text-blue-600');
-            messageBubble.querySelector('.dislike-btn').classList.remove('text-red-600');
+        // UPDATED: Like button with backend integration
+        const likeBtn = messageBubble.querySelector('.like-btn');
+        likeBtn.addEventListener('click', async (e) => {
+            const button = e.currentTarget;
+            const messageIndex = parseInt(button.dataset.messageIndex);
+            const isCurrentlyLiked = button.classList.contains('text-blue-600');
+            
+            if (isCurrentlyLiked) {
+                // Remove like
+                button.classList.remove('text-blue-600');
+                feedbackData.delete(messageIndex);
+                
+                // Send neutral feedback (no feedback)
+                await sendFeedback('neutral', messageIndex);
+            } else {
+                // Add like
+                button.classList.add('text-blue-600');
+                messageBubble.querySelector('.dislike-btn').classList.remove('text-red-600');
+                
+                // Send like feedback
+                await sendFeedback('like', messageIndex);
+                feedbackData.set(messageIndex, { type: 'like', timestamp: new Date() });
+            }
         });
 
-        messageBubble.querySelector('.dislike-btn').addEventListener('click', (e) => {
-            e.currentTarget.classList.toggle('text-red-600');
-            messageBubble.querySelector('.like-btn').classList.remove('text-blue-600');
+        // UPDATED: Dislike button with backend integration
+        const dislikeBtn = messageBubble.querySelector('.dislike-btn');
+        dislikeBtn.addEventListener('click', async (e) => {
+            const button = e.currentTarget;
+            const messageIndex = parseInt(button.dataset.messageIndex);
+            const isCurrentlyDisliked = button.classList.contains('text-red-600');
+            
+            if (isCurrentlyDisliked) {
+                // Remove dislike
+                button.classList.remove('text-red-600');
+                feedbackData.delete(messageIndex);
+                
+                // Send neutral feedback (no feedback)
+                await sendFeedback('neutral', messageIndex);
+            } else {
+                // Add dislike
+                button.classList.add('text-red-600');
+                messageBubble.querySelector('.like-btn').classList.remove('text-blue-600');
+                
+                // Send dislike feedback
+                await sendFeedback('dislike', messageIndex);
+                feedbackData.set(messageIndex, { type: 'dislike', timestamp: new Date() });
+            }
         });
 
+        // Speak button functionality
         const speakBtn = messageBubble.querySelector('.speak-btn');
         speakBtn.addEventListener('click', () => {
              if (window.speechSynthesis.speaking) {
@@ -907,11 +1032,14 @@ function addMessage({text, sender, fileInfo = null, mode = null}) {
             }
         });
 
+        return aiMessageContainer;
+
     } else if (sender === 'system') {
         const messageBubble = document.createElement('div');
         messageBubble.textContent = text;
         messageBubble.className = 'message-bubble system-message';
         chatContainer.appendChild(messageBubble);
+        return messageBubble;
     }
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -1210,6 +1338,10 @@ async function saveTemporaryChatToDB() {
         
         currentChatId = savedChat.id; 
         chatHistory.unshift({ id: savedChat.id, title: savedChat.title, messages: [...currentChat] });
+        
+        // Load feedback for the newly saved chat
+        await loadChatFeedback(currentChatId);
+        
         renderChatHistorySidebar();
 
         saveToDbBtn.textContent = 'Saved!';
@@ -1347,7 +1479,7 @@ searchHistoryInput.addEventListener('input', (e) => {
     });
 });
 
-function loadChat(chatId) {
+async function loadChat(chatId) {
     isTemporaryChatActive = false;
     tempChatBanner.classList.add('hidden');
     
@@ -1357,12 +1489,26 @@ function loadChat(chatId) {
     currentChatId = chatId;
     currentChat = [...chat.messages];
 
+    // Reset message index and load feedback for this chat
+    currentMessageIndex = 0;
+    feedbackData.clear();
+    await loadChatFeedback(chatId);
+
     chatContainer.innerHTML = '';
     welcomeMessageContainer.classList.add('hidden');
     chatContainer.classList.remove('hidden');
     document.body.classList.remove('initial-view');
 
-    currentChat.forEach(message => addMessage(message));
+    // Render messages with their feedback states
+    currentChat.forEach((message, index) => {
+        if (message.sender === 'ai') {
+            addMessage(message, index);
+            currentMessageIndex++;
+        } else {
+            addMessage(message);
+        }
+    });
+    
     renderChatHistorySidebar();
 }
 
@@ -1373,6 +1519,8 @@ function startNewChat() {
 
     currentChat = [];
     currentChatId = null;
+    currentMessageIndex = 0;
+    feedbackData.clear();
     
     chatContainer.innerHTML = '';
     welcomeMessageContainer.classList.remove('hidden');
