@@ -52,5 +52,5 @@
 
 ##  Contact
 
-**Ajay Kumar** *Security Engineer & Developer* [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=flat&logo=linkedin)](https://linkedin.com/in/ajayyanshu/) [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=flat&logo=github)](https://github.com/ajayyanshu)
+**Ajay Kumar** *Security Engineer & Developer* [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=flat&logo=linkedin)](https://linkedin.com/in/ajayyanshu/) [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=flat&logo=github)](https://github.com/ajayyanshu) [![Instagram](https://img.shields.io/badge/Instagram-Follow-black?style=flat&logo=instagram)](https://www.instagram.com/ajayyanshu/)
    Feedback or issues? Reach out at ajayyanshu@gmail.com
