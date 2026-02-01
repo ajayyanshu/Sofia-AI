@@ -22,3 +22,4 @@ python-magic # For Windows
 # OR python-magic==0.4.27  # For Linux/Mac
 flask-limiter==3.3.0
 Werkzeug==2.3.0
+user-agents==2.2.0
