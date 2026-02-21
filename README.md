@@ -31,12 +31,12 @@
 * **Backend:** Python (Flask), Werkzeug Security
 * **Frontend:** Vanilla JavaScript, HTML5, CSS3 (Responsive Design)
 * **Database:** MongoDB (User data & Chat history)
-* **AI Models:** Google Gemini Pro, Groq (Llama 3 / Mixtral)
+* **AI Models:** Google Gemini , Groq 
 * **APIs:** Serper.dev (Search), Brevo (Email Auth)
 
 ---
 #  Live Demo
-**Click here to try Sofia AI instantly:** 👇
+
 ### 🔗 https://sofia-ai-89kr.onrender.com/
 
 *(Note: Since this is hosted on a free instance, it may take 50 seconds to wake up. Please be patient!)*
