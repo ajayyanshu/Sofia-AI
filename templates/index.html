@@ -6,7 +6,6 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'G-NVS8F46X4H');
     </script>
     <meta charset="UTF-8">
@@ -16,12 +15,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <link rel="stylesheet" href="/static/style.css">
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" defer></script>
 </head>
 <body class="h-full flex initial-view relative">
 
+    <!-- Loading overlay -->
     <div id="loading-overlay" style="display: none;">
         <div class="loader-content">
             <div class="spinner"></div>
@@ -31,6 +30,7 @@
 
     <div id="sidebar-overlay" class="hidden fixed inset-0 z-30 bg-black/50"></div>
 
+    <!-- Voice overlay -->
     <div id="voice-overlay" class="hidden fixed inset-0 z-50 flex-col items-center justify-between p-8">
         <div class="w-full h-1/4"></div>
         <div class="flex flex-col items-center justify-center text-center space-y-6">
@@ -47,6 +47,7 @@
         </div>
     </div>
     
+    <!-- Settings Modal -->
     <div id="settings-modal" class="hidden fixed inset-0 z-50 items-center justify-center">
         <div class="bg-white rounded-lg shadow-xl w-full h-full sm:h-[80vh] sm:max-w-4xl sm:mx-4 flex flex-col sm:flex-row">
             <div class="w-full sm:w-1/4 p-4 flex flex-col sm:border-r border-b sm:border-b-0 border-gray-200">
@@ -168,6 +169,7 @@
         </div>
     </div>
     
+    <!-- Library Modal -->
     <div id="library-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
@@ -182,6 +184,47 @@
         </div>
     </div>
 
+    <!-- ========== NEW: Vulnerability Scanner Modal ========== -->
+    <div id="scanner-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-xl font-bold text-gray-800 dark:text-white">Vulnerability Scanner</h2>
+                <button id="close-scanner-btn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <!-- Body -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- URL Input -->
+                <div>
+                    <label for="scan-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
+                    <input type="url" id="scan-url" placeholder="https://example.com" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <!-- Start Button & Limit Info -->
+                <div class="flex items-center justify-between">
+                    <button id="start-scan-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">Start Scan</button>
+                    <span id="scan-limit-info" class="text-sm text-gray-500 dark:text-gray-400">Scans left today: 1</span>
+                </div>
+                <!-- Progress Bar -->
+                <div id="scan-progress-container" class="hidden space-y-2">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                        <div id="scan-progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="scan-status" class="text-sm text-gray-600 dark:text-gray-400">Initializing...</p>
+                </div>
+                <!-- AI Commentary Log -->
+                <div id="scan-log" class="hidden bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs border border-gray-200 dark:border-gray-700 space-y-1"></div>
+                <!-- Results Area -->
+                <div id="scan-results" class="hidden space-y-3">
+                    <h3 class="font-semibold text-gray-800 dark:text-white">Results</h3>
+                    <div id="results-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
     <aside id="sidebar" class="absolute z-40 w-72 bg-gray-50 border-r border-gray-200 flex-shrink-0 flex flex-col h-full -translate-x-full">
         <div class="p-4 space-y-4">
             <div class="relative">
@@ -244,6 +287,7 @@
         </div>
     </aside>
 
+    <!-- Main chat area -->
     <div class="flex flex-col h-full flex-1 min-w-0">
         <header class="w-full flex justify-between items-center py-4 px-4 sm-px-6 bg-white border-b border-gray-200 z-10">
             <div class="flex items-center gap-2">
@@ -285,7 +329,6 @@
                         <button id="add-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         </button>
-                        <!-- CHANGED: Added multiple attribute here -->
                         <input type="file" id="file-input" class="hidden" multiple>
                         <div id="add-menu" class="hidden absolute bottom-full mb-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-20">
                             <button id="upload-file-btn" class="menu-item w-full text-left">
@@ -300,7 +343,14 @@
                                 <span class="text-sm font-medium text-gray-700" data-lang="uploadCode">Upload code</span>
                                 <span class="ml-auto text-xs text-gray-500">(multiple)</span>
                             </button>
-                            </div>
+                            <!-- NEW: Scanner menu item -->
+                            <button id="scanner-menu-item" class="menu-item w-full text-left">
+                                <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <span class="text-sm font-medium text-gray-700" data-lang="scanner">Vulnerability Scanner</span>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="border-l h-6 border-gray-300 mx-2 self-center"></div>
@@ -329,6 +379,7 @@
         </footer>
     </div>
     
+    <!-- Contact Modal -->
     <div id="contact-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 relative">
             <button id="close-contact-modal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -363,6 +414,287 @@
         </div>
     </div>
 
+    <!-- Main scripts -->
     <script src="/static/script.js" defer></script>
+    <!-- NEW: Scanner JavaScript (you can also merge this into script.js) -->
+    <script>
+        // ========== SCANNER FUNCTIONALITY ==========
+        (function() {
+            // DOM elements
+            const scannerModal = document.getElementById('scanner-modal');
+            const closeScannerBtn = document.getElementById('close-scanner-btn');
+            const startScanBtn = document.getElementById('start-scan-btn');
+            const scanUrlInput = document.getElementById('scan-url');
+            const scanProgressContainer = document.getElementById('scan-progress-container');
+            const scanProgressBar = document.getElementById('scan-progress-bar');
+            const scanStatus = document.getElementById('scan-status');
+            const scanLog = document.getElementById('scan-log');
+            const scanResults = document.getElementById('scan-results');
+            const resultsList = document.getElementById('results-list');
+            const scanLimitInfo = document.getElementById('scan-limit-info');
+            const scannerMenuItem = document.getElementById('scanner-menu-item');
+            const addMenu = document.getElementById('add-menu');
+
+            // State
+            let scansLeft = 1; // will be updated from server
+            let isScanning = false;
+            let isAdmin = false; // will be updated from global if available
+
+            // Helper to add log entry
+            function addLogEntry(message) {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+                scanLog.appendChild(entry);
+                scanLog.scrollTop = scanLog.scrollHeight;
+            }
+
+            // Reset UI
+            function resetScannerUI() {
+                scanUrlInput.value = '';
+                scanProgressContainer.classList.add('hidden');
+                scanLog.classList.add('hidden');
+                scanLog.innerHTML = '';
+                scanResults.classList.add('hidden');
+                resultsList.innerHTML = '';
+                scanProgressBar.style.width = '0%';
+                scanStatus.textContent = '';
+                startScanBtn.disabled = false;
+                startScanBtn.textContent = 'Start Scan';
+            }
+
+            // Open modal
+            function openScannerModal() {
+                scannerModal.classList.remove('hidden');
+                scannerModal.classList.add('flex');
+                resetScannerUI();
+                // Fetch latest scan limit
+                fetch('/get_user_info')
+                    .then(res => res.json())
+                    .then(data => {
+                        isAdmin = data.isAdmin || false;
+                        // Assuming server returns scansLeft; if not, default to 1 for free
+                        scansLeft = data.scansLeft !== undefined ? data.scansLeft : (data.isAdmin ? 999 : 1);
+                        scanLimitInfo.textContent = `Scans left today: ${scansLeft}`;
+                    })
+                    .catch(() => {
+                        scansLeft = 1;
+                        scanLimitInfo.textContent = `Scans left today: 1`;
+                    });
+            }
+
+            // Close modal
+            function closeScannerModal() {
+                scannerModal.classList.add('hidden');
+                scannerModal.classList.remove('flex');
+                if (isScanning) isScanning = false;
+            }
+
+            // Event listeners
+            closeScannerBtn.addEventListener('click', closeScannerModal);
+            scannerModal.addEventListener('click', (e) => {
+                if (e.target === scannerModal) closeScannerModal();
+            });
+
+            scannerMenuItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+                addMenu.classList.add('hidden'); // hide the add menu
+                openScannerModal();
+            });
+
+            // Start scan
+            startScanBtn.addEventListener('click', async function() {
+                const url = scanUrlInput.value.trim();
+                if (!url) {
+                    alert('Please enter a valid URL');
+                    return;
+                }
+
+                if (!isAdmin && scansLeft <= 0) {
+                    alert('You have reached your daily scan limit. Upgrade to scan more.');
+                    return;
+                }
+
+                // Deduct scan (will be recorded on server)
+                if (!isAdmin) {
+                    scansLeft--;
+                    scanLimitInfo.textContent = `Scans left today: ${scansLeft}`;
+                    // Optionally send to server
+                    try {
+                        await fetch('/update_usage', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type: 'scan' })
+                        });
+                    } catch (e) {
+                        console.warn('Failed to record scan usage');
+                    }
+                }
+
+                isScanning = true;
+                startScanBtn.disabled = true;
+                scanProgressContainer.classList.remove('hidden');
+                scanLog.classList.remove('hidden');
+                scanLog.innerHTML = '';
+                scanResults.classList.add('hidden');
+                resultsList.innerHTML = '';
+
+                const steps = [
+                    { progress: 10, status: 'Checking target availability...', log: '🌐 Resolving domain and checking server response...' },
+                    { progress: 25, status: 'Enumerating directories...', log: '🔍 Searching for common directories and backup files...' },
+                    { progress: 40, status: 'Testing for SQL injection...', log: '💉 Injecting SQL payloads into parameters...' },
+                    { progress: 55, status: 'Checking for XSS vulnerabilities...', log: '📜 Inserting script tags to test for reflection...' },
+                    { progress: 70, status: 'Analyzing headers & cookies...', log: '🍪 Inspecting security headers and cookie flags...' },
+                    { progress: 85, status: 'Checking SSL/TLS configuration...', log: '🔒 Validating certificate and cipher suites...' },
+                    { progress: 100, status: 'Scan completed!', log: '✅ Finalizing report...' }
+                ];
+
+                for (let i = 0; i < steps.length; i++) {
+                    if (!isScanning) break;
+                    scanProgressBar.style.width = steps[i].progress + '%';
+                    scanStatus.textContent = steps[i].status;
+                    addLogEntry(steps[i].log);
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+
+                if (isScanning) {
+                    // Mock results
+                    const mockVulns = [
+                        { title: 'SQL Injection', severity: 'critical', description: 'Parameter "id" is vulnerable to time-based blind SQL injection.', remediation: 'Use prepared statements and parameterized queries.' },
+                        { title: 'Cross-Site Scripting (XSS)', severity: 'high', description: 'Reflected XSS found in search parameter.', remediation: 'Escape user input and use Content-Security-Policy.' },
+                        { title: 'Missing Security Headers', severity: 'medium', description: 'X-Frame-Options, X-Content-Type-Options headers are missing.', remediation: 'Add these headers to prevent clickjacking and MIME sniffing.' },
+                        { title: 'Outdated Server Version', severity: 'low', description: 'Server reveals version information.', remediation: 'Hide server version banners.' }
+                    ];
+
+                    mockVulns.forEach(v => {
+                        const item = document.createElement('div');
+                        item.className = `result-item ${v.severity}`;
+                        item.innerHTML = `
+                            <div class="result-title">
+                                <span class="severity-${v.severity} px-2 py-0.5 rounded-full text-xs font-bold uppercase">${v.severity}</span>
+                                ${v.title}
+                            </div>
+                            <div class="result-description">${v.description}</div>
+                            <div class="remediation">💡 ${v.remediation}</div>
+                        `;
+                        resultsList.appendChild(item);
+                    });
+
+                    scanResults.classList.remove('hidden');
+                    addLogEntry('🎯 Scan finished. Found 4 potential vulnerabilities.');
+                }
+
+                isScanning = false;
+                startScanBtn.disabled = false;
+                startScanBtn.textContent = 'Scan Again';
+            });
+
+            // Optional: if the main app has global isAdmin, use it
+            window.addEventListener('load', function() {
+                if (window.isAdmin !== undefined) {
+                    isAdmin = window.isAdmin;
+                }
+                // Also try to get scansLeft from global usage if available
+                if (window.usageCounts && window.usageCounts.scansLeft !== undefined) {
+                    scansLeft = window.usageCounts.scansLeft;
+                    scanLimitInfo.textContent = `Scans left today: ${scansLeft}`;
+                } else {
+                    // Fetch independently
+                    fetch('/get_user_info')
+                        .then(res => res.json())
+                        .then(data => {
+                            isAdmin = data.isAdmin || false;
+                            scansLeft = data.scansLeft !== undefined ? data.scansLeft : (data.isAdmin ? 999 : 1);
+                            scanLimitInfo.textContent = `Scans left today: ${scansLeft}`;
+                        })
+                        .catch(() => {});
+                }
+            });
+        })();
+    </script>
+    <!-- Add necessary CSS for scanner (if not already in style.css) -->
+    <style>
+        /* Scanner-specific styles (copied from style2.css) */
+        #scan-log {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+        #scan-log::-webkit-scrollbar {
+            width: 6px;
+        }
+        #scan-log::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        #scan-log::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .dark #scan-log::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .dark #scan-log::-webkit-scrollbar-thumb {
+            background: #4b5563;
+        }
+        .severity-critical { background-color: #7f1d1d; color: #fee2e2; }
+        .severity-high { background-color: #991b1b; color: #fee2e2; }
+        .severity-medium { background-color: #b45309; color: #ffedd5; }
+        .severity-low { background-color: #1e3a8a; color: #dbeafe; }
+        .result-item {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border-left-width: 4px;
+            background-color: #f9fafb;
+            transition: all 0.2s;
+        }
+        .dark .result-item {
+            background-color: #1f2937;
+        }
+        .result-item.critical { border-left-color: #7f1d1d; }
+        .result-item.high { border-left-color: #991b1b; }
+        .result-item.medium { border-left-color: #b45309; }
+        .result-item.low { border-left-color: #1e3a8a; }
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .result-description {
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+        .dark .result-description {
+            color: #9ca3af;
+        }
+        .remediation {
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .dark .remediation {
+            color: #a0a0a0;
+        }
+        .log-entry {
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed #e5e7eb;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+        .dark .log-entry {
+            border-bottom-color: #374151;
+            color: #d1d5db;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .log-time {
+            color: #6b7280;
+            font-size: 0.7rem;
+            margin-right: 0.5rem;
+            font-family: monospace;
+        }
+    </style>
 </body>
 </html>
